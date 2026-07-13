@@ -25,6 +25,7 @@ import { Visibility, VisibilityOff } from "@mui/icons-material";
 import HealthAndSafetyOutlinedIcon from "@mui/icons-material/HealthAndSafetyOutlined";
 // import VerifiedUserOutlinedIcon from "@mui/icons-material/VerifiedUserOutlined";
 import { useLocation, useNavigate } from "react-router-dom";
+import { authenticateMockUser, demoLogin } from "../auth/mockUsers";
 import { useAuth } from "../auth/useAuth";
 
 type Mode = "signIn" | "signUp";
@@ -41,10 +42,6 @@ export function AuthScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const isSignUp = mode === "signUp";
-  const redirectTo =
-    (location.state as { from?: { pathname?: string } } | null)?.from
-      ?.pathname ?? "/upload/identity";
-
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (isSignUp && !name.trim())
@@ -55,11 +52,27 @@ export function AuthScreen() {
       return setError("Use a password with at least 8 characters.");
     if (isSignUp && !termsAccepted)
       return setError("Accept the terms to continue.");
-    signIn({
-      name: isSignUp ? name.trim() : email.split("@")[0],
-      email,
-      role: email.toLowerCase().startsWith("admin") ? "admin" : "user",
-    });
+    const session = isSignUp
+      ? {
+          name: name.trim(),
+          email: email.trim(),
+          role: "user" as const,
+        }
+      : authenticateMockUser(email, password);
+
+    if (!session) {
+      return setError("Incorrect email or password.");
+    }
+
+    const requestedRoute = (
+      location.state as { from?: { pathname?: string } } | null
+    )?.from?.pathname;
+    const redirectTo =
+      session.role === "admin"
+        ? "/admin/gl-process"
+        : (requestedRoute ?? "/upload/identity");
+
+    signIn(session);
     navigate(redirectTo, { replace: true });
   };
 
@@ -80,7 +93,7 @@ export function AuthScreen() {
               <HealthAndSafetyOutlinedIcon />
             </Box>
             <Typography fontWeight={800} letterSpacing="-.04em">
-              Admission Accelerator
+              Rawat Lawat
             </Typography>
           </Stack>
           <Box className="auth-copy">
@@ -131,7 +144,7 @@ export function AuthScreen() {
             <Box className="auth-brand-mark">
               <HealthAndSafetyOutlinedIcon />
             </Box>
-            <Typography fontWeight={800}>Admission Accelerator</Typography>
+            <Typography fontWeight={800}>Rawat Lawat</Typography>
           </Stack>
           <Card className="auth-card" elevation={0}>
             <Box className="auth-card-accent" />
@@ -267,9 +280,24 @@ export function AuthScreen() {
                 textAlign="center"
                 mt={3}
               >
-                Demo session: start your email with <b>admin</b> to test the
-                future admin role.
+                Demo sign-in: <b>{demoLogin.email}</b> /{" "}
+                <b>{demoLogin.password}</b>
               </Typography>
+              <Button
+                fullWidth
+                size="small"
+                sx={{ mt: 1.25 }}
+                onClick={() => {
+                  signIn({
+                    name: "Hospital Administrator",
+                    email: "admin@hospital.com",
+                    role: "admin",
+                  });
+                  navigate("/admin/gl-process");
+                }}
+              >
+                Open hospital admin demo
+              </Button>
             </Box>
           </Card>
           <Typography variant="caption" className="auth-footer">

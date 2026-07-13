@@ -18,6 +18,7 @@ import {
   Routes,
   useLocation,
   useNavigate,
+  useParams,
 } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthContext";
 import { useAuth } from "./auth/useAuth";
@@ -29,6 +30,9 @@ import {
 } from "./components/OnboardingSteps";
 import { Progress } from "./components/Progress";
 import { SuccessModal } from "./components/SuccessModal";
+import { HospitalAdminDashboard } from "./components/admin/HospitalAdminDashboard";
+import { AdminPatientQueue } from "./components/admin/AdminPatientQueue";
+import { pendingPatients } from "./data/pendingPatients";
 import { emptyIdentity, emptyPolicy } from "./types/onboarding";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
 
@@ -94,7 +98,7 @@ function UploadLayout() {
             color="primary.main"
             sx={{ ml: 1 }}
           >
-            Admission Accelerator
+            Rawat Lawat
           </Typography>
           <Stack
             direction="row"
@@ -193,8 +197,26 @@ function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route path="/upload/*" element={<UploadLayout />} />
       </Route>
+      <Route element={<ProtectedRoute roles={["admin"]} />}>
+        <Route path="/admin/gl-process" element={<AdminPatientQueue />} />
+        <Route
+          path="/admin/gl-process/:patientId"
+          element={<PatientGlProcess />}
+        />
+      </Route>
       <Route path="*" element={<Navigate to="/upload/identity" replace />} />
     </Routes>
+  );
+}
+
+function PatientGlProcess() {
+  const { patientId } = useParams();
+  const patient = pendingPatients.find(item => item.id === patientId);
+
+  return patient ? (
+    <HospitalAdminDashboard patient={patient} />
+  ) : (
+    <Navigate to="/admin/gl-process" replace />
   );
 }
 

@@ -129,6 +129,13 @@ export function DocumentCapture({
 
   return (
     <Box>
+      <Alert
+        icon={status === "reading" ? <CircularProgress size={18} /> : undefined}
+        severity={status === "error" ? "error" : "info"}
+        sx={{ mb: 2, "& .MuiAlert-message": { width: "100%" } }}
+      >
+        {message}
+      </Alert>
       <Paper
         variant="outlined"
         sx={{
@@ -216,17 +223,6 @@ export function DocumentCapture({
               <RefreshRoundedIcon />
             </IconButton>
           ) : null}
-        </Box>
-        <Box position="absolute" bottom={12} left={12} right={12}>
-          <Alert
-            icon={
-              status === "reading" ? <CircularProgress size={18} /> : undefined
-            }
-            severity={status === "error" ? "error" : "info"}
-            sx={{ "& .MuiAlert-message": { width: "100%" } }}
-          >
-            {message}
-          </Alert>
         </Box>
       </Paper>
       <input

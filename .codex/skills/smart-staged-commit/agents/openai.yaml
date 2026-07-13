@@ -1,0 +1,4 @@
+interface:
+  display_name: "Smart Staged Commit"
+  short_description: "Commit staged work with focused history"
+  default_prompt: "Use $smart-staged-commit to commit the staged changes."

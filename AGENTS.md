@@ -6,3 +6,8 @@
 - Run the project's formatter when one is available; otherwise, preserve the surrounding file's established indentation and line-break style.
 - Add comments only to explain non-obvious intent, constraints, or trade-offs—not to restate the code.
 - Before finishing a change, review it for readability and simplify confusing logic, names, and structure.
+
+## Frontend structure
+
+- Keep pages focused on composing a screen. Extract meaningful sections, reusable UI, and non-trivial presentation logic into focused components instead of placing everything in a single page or `App.tsx` file.
+- Co-locate a component's styles, types, and small helpers when that makes ownership clear; avoid extracting trivial one-line markup solely for abstraction.

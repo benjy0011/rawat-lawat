@@ -218,7 +218,7 @@ export function DocumentCapture({
             </IconButton>
           ) : image && status !== "reading" ? (
             <IconButton
-              color="inherit"
+              color="info"
               sx={{ bgcolor: "rgba(0,0,0,.55)" }}
               onClick={reset}
               aria-label="Try another image"

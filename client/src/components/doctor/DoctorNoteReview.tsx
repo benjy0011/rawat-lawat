@@ -54,7 +54,7 @@ export function DoctorNoteReview() {
           startIcon={<ArrowBackRoundedIcon />}
           onClick={() => navigate("/doctor/admissions")}
         >
-          Back to queue
+          Back to doctor workspace
         </Button>
 
         <Card variant="outlined" sx={{ mt: 2 }}>
@@ -76,7 +76,9 @@ export function DoctorNoteReview() {
                   Doctor workspace
                 </Typography>
                 <Typography variant="h5" fontWeight={700} mt={0.5}>
-                  Review and sign admission note
+                  {admission.doctorNote.signed
+                    ? "View signed admission note"
+                    : "Review and sign admission note"}
                 </Typography>
               </Box>
               <Chip

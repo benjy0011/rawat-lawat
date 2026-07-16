@@ -14,6 +14,7 @@ import FavoriteRoundedIcon from "@mui/icons-material/FavoriteRounded";
 import SupportAgentRoundedIcon from "@mui/icons-material/SupportAgentRounded";
 import { useState, type ReactNode } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { useAuth } from "../auth/useAuth";
 import { useWorkflow } from "../workflow/AdmissionWorkflowContext";
 import { PatientName } from "./PatientName";
 
@@ -50,12 +51,16 @@ const supportOptions: SupportOption[] = [
 export function PatientSupportOptions() {
   const { admissionId } = useParams();
   const navigate = useNavigate();
+  const { session } = useAuth();
   const { admissions } = useWorkflow();
   const [requestedOption, setRequestedOption] = useState<string | null>(null);
-  const admission = admissions.find(item => item.id === admissionId);
+  const admission = admissions.find(
+    item =>
+      item.id === admissionId && item.patientEmail === session?.email,
+  );
 
   if (!admission) {
-    return <Navigate to="/upload/identity" replace />;
+    return <Navigate to="/patient/admissions" replace />;
   }
 
   return (

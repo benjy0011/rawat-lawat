@@ -12,8 +12,10 @@ import {
   Typography,
 } from "@mui/material";
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
+import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import VolunteerActivismRoundedIcon from "@mui/icons-material/VolunteerActivismRounded";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { useAuth } from "../auth/useAuth";
 import type { AdmissionStatus } from "../workflow/AdmissionWorkflowContext";
 import { useWorkflow } from "../workflow/AdmissionWorkflowContext";
 import { PatientName } from "./PatientName";
@@ -88,11 +90,15 @@ const patientStatus: Record<AdmissionStatus, PatientStatus> = {
 export function PatientAdmissionTracker() {
   const { admissionId } = useParams();
   const navigate = useNavigate();
+  const { session } = useAuth();
   const { admissions } = useWorkflow();
-  const admission = admissions.find(item => item.id === admissionId);
+  const admission = admissions.find(
+    item =>
+      item.id === admissionId && item.patientEmail === session?.email,
+  );
 
   if (!admission) {
-    return <Navigate to="/upload/identity" replace />;
+    return <Navigate to="/patient/admissions" replace />;
   }
 
   const current = patientStatus[admission.status];
@@ -102,13 +108,27 @@ export function PatientAdmissionTracker() {
   return (
     <Box className="app-page" component="main" minHeight="100vh" bgcolor="background.default" px={{ xs: 2.5, lg: 5 }} py={4}>
       <Box maxWidth="sm" mx="auto">
-        <Button
-          className="motion-button motion-enter"
-          startIcon={<ArrowBackRoundedIcon />}
-          onClick={() => navigate("/upload/identity")}
+        <Stack
+          className="motion-enter"
+          direction={{ xs: "column", sm: "row" }}
+          justifyContent="space-between"
+          spacing={1}
         >
-          Start another admission
-        </Button>
+          <Button
+            className="motion-button"
+            startIcon={<ArrowBackRoundedIcon />}
+            onClick={() => navigate("/patient/admissions")}
+          >
+            Back to my admissions
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<AddRoundedIcon />}
+            onClick={() => navigate("/upload/identity")}
+          >
+            Start new admission
+          </Button>
+        </Stack>
 
         <Card className="motion-card motion-enter motion-enter-delay-1" variant="outlined" sx={{ mt: 2 }}>
           <CardContent sx={{ p: { xs: 3, sm: 4 } }}>

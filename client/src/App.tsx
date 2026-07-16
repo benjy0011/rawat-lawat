@@ -30,6 +30,7 @@ import {
 } from "./components/OnboardingSteps";
 import { Progress } from "./components/Progress";
 import { PatientAdmissionTracker } from "./components/PatientAdmissionTracker";
+import { PatientAdmissions } from "./components/PatientAdmissions";
 import { PatientSupportOptions } from "./components/PatientSupportOptions";
 import { HospitalAdminDashboard } from "./components/admin/HospitalAdminDashboard";
 import { AdminPatientQueue } from "./components/admin/AdminPatientQueue";
@@ -80,8 +81,13 @@ function UploadLayout() {
             aria-label="Go back"
             color="primary"
             onClick={() =>
-              step > 1 &&
-              navigate(step === 2 ? "/upload/identity" : "/upload/policy")
+              navigate(
+                step === 1
+                  ? "/patient/admissions"
+                  : step === 2
+                    ? "/upload/identity"
+                    : "/upload/policy",
+              )
             }
           >
             <ArrowBackRoundedIcon />
@@ -173,7 +179,13 @@ function UploadLayout() {
                 setConsent={setConsent}
                 onBack={() => navigate("/upload/policy")}
                 onSubmit={() => {
-                  const admission = createAdmission({ identity, policy });
+                  if (!session) return;
+
+                  const admission = createAdmission({
+                    identity,
+                    policy,
+                    patientEmail: session.email,
+                  });
                   navigate(`/admission/${admission.id}/status`);
                 }}
               />
@@ -189,11 +201,13 @@ function UploadLayout() {
 function AppRoutes() {
   return (
     <Routes>
+      <Route path="/" element={<RoleLanding />} />
       <Route path="/login" element={<AuthScreen />} />
       <Route element={<ProtectedRoute />}>
         <Route path="/upload/*" element={<UploadLayout />} />
       </Route>
       <Route element={<ProtectedRoute roles={["user"]} />}>
+        <Route path="/patient/admissions" element={<PatientAdmissions />} />
         <Route
           path="/admission/:admissionId/status"
           element={<PatientAdmissionTracker />}
@@ -214,9 +228,22 @@ function AppRoutes() {
         <Route path="/doctor/admissions" element={<DoctorReviewQueue />} />
         <Route path="/doctor/admissions/:patientId" element={<DoctorNoteReview />} />
       </Route>
-      <Route path="*" element={<Navigate to="/upload/identity" replace />} />
+      <Route path="*" element={<RoleLanding />} />
     </Routes>
   );
+}
+
+function RoleLanding() {
+  const { session } = useAuth();
+
+  if (!session) return <Navigate to="/login" replace />;
+  if (session.role === "admin") {
+    return <Navigate to="/admin/gl-process" replace />;
+  }
+  if (session.role === "doctor") {
+    return <Navigate to="/doctor/admissions" replace />;
+  }
+  return <Navigate to="/patient/admissions" replace />;
 }
 
 function PatientGlProcess() {

@@ -31,6 +31,7 @@ export type RetrievedDocument = {
 };
 
 export type AdmissionRecord = PendingPatient & {
+  patientEmail?: string;
   status: AdmissionStatus;
   doctorNote: {
     summary: string;
@@ -45,7 +46,11 @@ export type AdmissionRecord = PendingPatient & {
   timeline: WorkflowEvent[];
 };
 
-type CreateAdmissionInput = { identity: Identity; policy: Policy };
+type CreateAdmissionInput = {
+  identity: Identity;
+  policy: Policy;
+  patientEmail: string;
+};
 
 type WorkflowContextValue = {
   admissions: AdmissionRecord[];
@@ -168,10 +173,15 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
-  const createAdmission = ({ identity, policy }: CreateAdmissionInput) => {
+  const createAdmission = ({
+    identity,
+    policy,
+    patientEmail,
+  }: CreateAdmissionInput) => {
     const id = `admission-${Date.now()}`;
     const admission: AdmissionRecord = {
       id,
+      patientEmail,
       name: identity.fullName,
       gender: identity.gender || getPatientGenderFromNric(identity.nric),
       medicalRecordNumber: `CH-${Math.floor(100000 + Math.random() * 899999)}`,

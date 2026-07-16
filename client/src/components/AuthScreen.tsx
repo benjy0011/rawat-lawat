@@ -71,7 +71,7 @@ export function AuthScreen() {
       ? "/admin/gl-process"
       : session.role === "doctor"
         ? "/doctor/admissions"
-        : (requestedRoute ?? "/upload/identity");
+        : (requestedRoute ?? "/patient/admissions");
 
     signIn(session);
     navigate(redirectTo, { replace: true });

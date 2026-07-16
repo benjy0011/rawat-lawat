@@ -1,77 +1,62 @@
-# React + TypeScript + Vite
+# Rawat Lawat Client
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Frontend prototype for preparing patient admission requests and coordinating
+doctor, hospital, and insurance review workflows.
 
-Currently, two official plugins are available:
+## Requirements
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Node.js 22 or newer
+- npm
 
-## React Compiler
+## Install and start
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+Run these commands from the `client` directory:
 
-Note: This will impact Vite dev & build performances.
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```powershell
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Open `http://localhost:3000` and keep the terminal running. Press `Ctrl+C` to
+stop the development server.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+For a clean installation using the locked dependency versions:
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```powershell
+npm ci
+npm run dev
+```
 
+## Demo accounts
+
+| Role | Email | Password |
+| --- | --- | --- |
+| Patient | `patient@example.com` | `Patient123!` |
+| Doctor | `doctor@hospital.com` | `Doctor123!` |
+| Administrator | `admin@hospital.com` | `Admin123!` |
+
+Patients can prepare a new request, review their admissions, and track an
+admission through doctor, hospital, and insurance review.
+
+## OCR models
+
+Document recognition runs in the browser. The production build downloads the
+required OCR models automatically into `public/models`; generated model files
+are excluded from Git.
+
+```powershell
+npm run build
+```
+
+The `prebuild` script runs before the Vite build, verifies each model download,
+and ensures the models are included in `dist/models` for deployment. The cloud
+build environment therefore needs outbound internet access.
+
+## Commands
+
+```powershell
+npm run dev      # Start the development server
+npm run build    # Download OCR models and create a production build
+npm run lint     # Run ESLint
+npm run preview  # Preview the production build
 ```

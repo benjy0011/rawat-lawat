@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Downloaded during the production build
+public/models/*.tar
+public/models/*.download
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

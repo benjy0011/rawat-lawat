@@ -1,4 +1,5 @@
 import { recognize } from "tesseract.js";
+import { inferPatientGenderFromNric } from "../types/patient";
 import type { DocumentKind, Identity, Policy } from "../types/onboarding";
 
 export function parseIdentity(raw: string): Identity {
@@ -19,14 +20,21 @@ export function parseIdentity(raw: string): Identity {
     nric.length === 12
       ? `${nric.slice(4, 6)}/${nric.slice(2, 4)}/${Number(nric.slice(0, 2)) > 30 ? "19" : "20"}${nric.slice(0, 2)}`
       : "";
-  return { fullName, nric, dateOfBirth };
+  return {
+    fullName,
+    nric,
+    dateOfBirth,
+    gender: inferPatientGenderFromNric(nric),
+  };
 }
 
 export function parsePolicy(raw: string): Policy {
   const provider = /AIA/i.test(raw)
     ? "AIA Malaysia"
     : /GREAT\s*EASTERN/i.test(raw)
-      ? "Great Eastern"
+      ? "Great Eastern Malaysia"
+      : /PRUDENTIAL/i.test(raw)
+        ? "Prudential Malaysia"
       : /ALLIANZ/i.test(raw)
         ? "Allianz Malaysia"
         : "";

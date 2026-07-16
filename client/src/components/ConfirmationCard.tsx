@@ -15,7 +15,10 @@ import {
 import BadgeOutlinedIcon from "@mui/icons-material/BadgeOutlined";
 import VerifiedRoundedIcon from "@mui/icons-material/VerifiedRounded";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
+import { PatientName } from "./PatientName";
+import { getPatientGenderFromNric } from "../types/patient";
 import type { Identity, Policy } from "../types/onboarding";
+import { InsurerLabel } from "./InsurerChip";
 
 export function ConfirmationCard({
   identity,
@@ -43,7 +46,7 @@ export function ConfirmationCard({
     ["Expiry date", policy.expiryDate || "Not specified"],
   ];
   return (
-    <Box>
+    <Box className="motion-enter motion-enter-delay-1">
       <Typography color="primary" fontWeight={700}>
         Final step
       </Typography>
@@ -54,7 +57,7 @@ export function ConfirmationCard({
         Review the extracted information before creating your secure admission
         profile.
       </Typography>
-      <Card variant="outlined">
+      <Card className="motion-card" variant="outlined">
         <CardContent>
           <Stack
             direction="row"
@@ -70,7 +73,10 @@ export function ConfirmationCard({
                 <BadgeOutlinedIcon />
               </Avatar>
               <Box>
-                <Typography fontWeight={700}>{identity.fullName}</Typography>
+                <PatientName
+                  name={identity.fullName}
+                  gender={identity.gender || getPatientGenderFromNric(identity.nric)}
+                />
                 <Typography variant="body2" color="text.secondary">
                   NRIC ·{" "}
                   {identity.nric.replace(/(\d{6})(\d{2})(\d{4})/, "$1-$2-$3")}
@@ -78,6 +84,7 @@ export function ConfirmationCard({
               </Box>
             </Stack>
             <Chip
+              className="verified-chip"
               icon={<VerifiedRoundedIcon />}
               label="Verified"
               size="small"
@@ -98,7 +105,11 @@ export function ConfirmationCard({
                 {label}
               </Typography>
               <Typography variant="body2" fontWeight={700} textAlign="right">
-                {value}
+                {label === "Policy provider" ? (
+                  <InsurerLabel insurer={value} />
+                ) : (
+                  value
+                )}
               </Typography>
             </Stack>
           ))}
@@ -158,10 +169,11 @@ export function ConfirmationCard({
         </Box>
       </Card>
       <Stack direction="row" spacing={2} mt={3}>
-        <Button variant="outlined" onClick={onBack}>
+        <Button className="motion-button" variant="outlined" onClick={onBack}>
           Back
         </Button>
         <Button
+          className="motion-button"
           variant="contained"
           sx={{ flex: 1 }}
           disabled={!consent}

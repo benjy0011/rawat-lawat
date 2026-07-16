@@ -1,5 +1,6 @@
 import { Box, Button, Stack, Typography } from "@mui/material";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
+import { insuranceProviders } from "../data/insuranceProviders";
 import type { Identity, Policy, StateSetter } from "../types/onboarding";
 import { ConfirmationCard } from "./ConfirmationCard";
 import { DataForm } from "./DataForm";
@@ -19,9 +20,13 @@ export function IdentityStep({
   setImage: (value: string) => void;
   onNext: () => void;
 }) {
-  const canContinue = Boolean(identity.fullName && identity.nric.length === 12);
+  const canContinue = Boolean(
+    identity.fullName &&
+      identity.nric.length === 12 &&
+      identity.gender,
+  );
   return (
-    <Box>
+    <Box className="motion-enter motion-enter-delay-1">
       <Intro
         badge="Step 1: Secure identification"
         title="Scan identity document"
@@ -41,6 +46,7 @@ export function IdentityStep({
           ["Full legal name", "fullName"],
           ["NRIC number", "nric"],
           ["Date of birth", "dateOfBirth"],
+          ["Gender", "gender"],
         ]}
         values={identity}
         setValues={(value) => setIdentity(value as Identity)}
@@ -48,6 +54,7 @@ export function IdentityStep({
       />
       <Stack mt={3} spacing={1}>
         <Button
+          className="motion-button"
           variant="contained"
           size="large"
           endIcon={<ArrowForwardRoundedIcon />}
@@ -87,7 +94,7 @@ export function PolicyStep({
 }) {
   const canContinue = Boolean(policy.provider && policy.policyNumber);
   return (
-    <Box>
+    <Box className="motion-enter motion-enter-delay-1">
       <Intro
         badge="Step 2: Coverage information"
         title="Scan your medical card"
@@ -112,12 +119,14 @@ export function PolicyStep({
         values={policy}
         setValues={(value) => setPolicy(value as Policy)}
         show={Boolean(image)}
+        selectOptions={{ provider: insuranceProviders }}
       />
       <Stack direction="row" spacing={2} mt={3}>
-        <Button variant="outlined" onClick={onBack}>
+        <Button className="motion-button" variant="outlined" onClick={onBack}>
           Back
         </Button>
         <Button
+          className="motion-button"
           sx={{ flex: 1 }}
           variant="contained"
           size="large"

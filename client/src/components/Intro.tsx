@@ -15,7 +15,7 @@ export function Intro({
 }) {
   const Icon = icon === "id" ? BadgeOutlinedIcon : HealthAndSafetyOutlinedIcon;
   return (
-    <Stack alignItems="center" textAlign="center" spacing={1.5} mb={4}>
+    <Stack className="motion-enter" alignItems="center" textAlign="center" spacing={1.5} mb={4}>
       <Chip icon={<Icon />} label={badge} color="primary" variant="outlined" />
       <Typography variant="h4">{title}</Typography>
       <Typography color="text.secondary" maxWidth={510}>

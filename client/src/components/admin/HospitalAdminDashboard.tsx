@@ -190,9 +190,9 @@ function HospitalAdminDashboardContent({
   const isAiResubmitting = patient.status === "AI_RESUBMISSION";
 
   useEffect(() => {
-    const firstStep = window.setTimeout(() => setActivePreparationStep(1), 1650);
-    const secondStep = window.setTimeout(() => setActivePreparationStep(2), 2300);
-    const complete = window.setTimeout(() => setIsPreparing(false), 3050);
+    const firstStep = window.setTimeout(() => setActivePreparationStep(1), 2150);
+    const secondStep = window.setTimeout(() => setActivePreparationStep(2), 2800);
+    const complete = window.setTimeout(() => setIsPreparing(false), 3550);
 
     return () => {
       window.clearTimeout(firstStep);
@@ -207,8 +207,8 @@ function HospitalAdminDashboardContent({
     }
 
     const resetPreparation = window.setTimeout(() => setResubmissionStep(0), 0);
-    const firstStep = window.setTimeout(() => setResubmissionStep(1), 500);
-    const secondStep = window.setTimeout(() => setResubmissionStep(2), 1050);
+    const firstStep = window.setTimeout(() => setResubmissionStep(1), 2000);
+    const secondStep = window.setTimeout(() => setResubmissionStep(2), 2800);
 
     return () => {
       window.clearTimeout(resetPreparation);

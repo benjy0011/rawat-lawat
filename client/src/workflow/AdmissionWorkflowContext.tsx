@@ -209,7 +209,7 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
           },
         ),
       );
-    }, 1900);
+    }, 2400);
     return admission;
   };
 
@@ -263,8 +263,8 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
             },
           ),
         );
-      }, 2000);
-    }, 1700);
+      }, 3500);
+    }, 2200);
   };
 
   const submitToInsurer = (id: string) => {

@@ -29,6 +29,7 @@ export function DoctorNoteReview() {
   const { admissions, signDoctorNote } = useWorkflow();
   const [signatureName, setSignatureName] = useState(session?.name ?? "");
   const [isConfirmed, setIsConfirmed] = useState(false);
+  const [isSigning, setIsSigning] = useState(false);
   const admission = admissions.find(item => item.id === patientId);
 
   if (!admission) {
@@ -114,10 +115,18 @@ export function DoctorNoteReview() {
                       fullWidth
                       variant="contained"
                       startIcon={<DrawRoundedIcon />}
-                      disabled={!canSign}
-                      onClick={() => signDoctorNote(admission.id, signatureName.trim())}
+                      disabled={!canSign || isSigning}
+                      loading={isSigning}
+                      onClick={() => {
+                        setIsSigning(true);
+                        window.setTimeout(() => {
+                          signDoctorNote(admission.id, signatureName.trim());
+                        }, 1500);
+                      }}
                     >
-                      Electronically sign admission note
+                      {isSigning
+                        ? "Signing admission note…"
+                        : "Electronically sign admission note"}
                     </Button>
                   </Stack>
                 )

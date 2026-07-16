@@ -1,6 +1,6 @@
 import { createContext } from "react";
 
-export type Role = "user" | "admin";
+export type Role = "user" | "doctor" | "admin";
 export type Session = { name: string; email: string; role: Role };
 export type AuthContextValue = {
   session: Session | null;

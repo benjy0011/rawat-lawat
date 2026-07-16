@@ -12,6 +12,12 @@ const mockUsers: MockUser[] = [
     role: "user",
   },
   {
+    name: "Dr. Farah Ismail",
+    email: "doctor@hospital.com",
+    password: "Doctor123!",
+    role: "doctor",
+  },
+  {
     name: "Hospital Administrator",
     email: "admin@hospital.com",
     password: "Admin123!",

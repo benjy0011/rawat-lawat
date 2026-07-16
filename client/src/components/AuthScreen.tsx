@@ -67,9 +67,10 @@ export function AuthScreen() {
     const requestedRoute = (
       location.state as { from?: { pathname?: string } } | null
     )?.from?.pathname;
-    const redirectTo =
-      session.role === "admin"
-        ? "/admin/gl-process"
+    const redirectTo = session.role === "admin"
+      ? "/admin/gl-process"
+      : session.role === "doctor"
+        ? "/doctor/admissions"
         : (requestedRoute ?? "/upload/identity");
 
     signIn(session);
@@ -297,6 +298,21 @@ export function AuthScreen() {
                 }}
               >
                 Open hospital admin demo
+              </Button>
+              <Button
+                fullWidth
+                size="small"
+                sx={{ mt: 0.5 }}
+                onClick={() => {
+                  signIn({
+                    name: "Dr. Farah Ismail",
+                    email: "doctor@hospital.com",
+                    role: "doctor",
+                  });
+                  navigate("/doctor/admissions");
+                }}
+              >
+                Open doctor demo
               </Button>
             </Box>
           </Card>

@@ -1,7 +1,7 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 
-export function ProtectedRoute({ roles }: { roles?: Array<"user" | "admin"> }) {
+export function ProtectedRoute({ roles }: { roles?: Array<"user" | "doctor" | "admin"> }) {
   const { session } = useAuth();
   const location = useLocation();
   if (!session)

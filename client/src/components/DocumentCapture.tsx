@@ -130,6 +130,7 @@ export function DocumentCapture({
   return (
     <Box>
       <Alert
+        className="status-alert"
         icon={status === "reading" ? <CircularProgress size={18} /> : undefined}
         severity={status === "error" ? "error" : "info"}
         sx={{ mb: 2, "& .MuiAlert-message": { width: "100%" } }}
@@ -137,6 +138,7 @@ export function DocumentCapture({
         {message}
       </Alert>
       <Paper
+        className="capture-frame"
         variant="outlined"
         sx={{
           overflow: "hidden",
@@ -159,6 +161,7 @@ export function DocumentCapture({
         {image && status !== "camera" ? (
           <Box
             component="img"
+            className="capture-image"
             src={image}
             alt={`Captured ${title}`}
             sx={{ height: "100%", width: "100%", objectFit: "cover" }}
@@ -215,7 +218,7 @@ export function DocumentCapture({
             </IconButton>
           ) : image && status !== "reading" ? (
             <IconButton
-              color="inherit"
+              color="info"
               sx={{ bgcolor: "rgba(0,0,0,.55)" }}
               onClick={reset}
               aria-label="Try another image"
@@ -235,6 +238,7 @@ export function DocumentCapture({
       />
       {status === "camera" ? (
         <Button
+          className="motion-button"
           fullWidth
           sx={{ mt: 2 }}
           size="large"
@@ -247,6 +251,7 @@ export function DocumentCapture({
       ) : (
         <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} mt={2}>
           <Button
+            className="motion-button"
             fullWidth
             variant="contained"
             startIcon={<CameraAltOutlinedIcon />}
@@ -255,6 +260,7 @@ export function DocumentCapture({
             Use camera
           </Button>
           <Button
+            className="motion-button"
             fullWidth
             variant="outlined"
             startIcon={<UploadFileOutlinedIcon />}

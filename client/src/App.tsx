@@ -29,41 +29,35 @@ import {
   PolicyStep,
 } from "./components/OnboardingSteps";
 import { Progress } from "./components/Progress";
-import { SuccessModal } from "./components/SuccessModal";
+import { PatientAdmissionTracker } from "./components/PatientAdmissionTracker";
+import { PatientSupportOptions } from "./components/PatientSupportOptions";
 import { HospitalAdminDashboard } from "./components/admin/HospitalAdminDashboard";
 import { AdminPatientQueue } from "./components/admin/AdminPatientQueue";
-import { pendingPatients } from "./data/pendingPatients";
+import { DoctorNoteReview } from "./components/doctor/DoctorNoteReview";
+import { DoctorReviewQueue } from "./components/doctor/DoctorReviewQueue";
 import { emptyIdentity, emptyPolicy } from "./types/onboarding";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
+import { WorkflowProvider, useWorkflow } from "./workflow/AdmissionWorkflowContext";
 
 function UploadLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { session, signOut } = useAuth();
+  const { createAdmission } = useWorkflow();
   const [identity, setIdentity] = useState(emptyIdentity);
   const [policy, setPolicy] = useState(emptyPolicy);
   const [identityImage, setIdentityImage] = useState("");
   const [policyImage, setPolicyImage] = useState("");
   const [consent, setConsent] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
   const step = location.pathname.includes("/policy")
     ? 2
     : location.pathname.includes("/review")
       ? 3
       : 1;
-  const reset = () => {
-    setSubmitted(false);
-    setIdentity(emptyIdentity);
-    setPolicy(emptyPolicy);
-    setIdentityImage("");
-    setPolicyImage("");
-    setConsent(false);
-    navigate("/upload/identity");
-  };
-
   return (
-    <Box minHeight="100vh" bgcolor="background.default" pb={{ xs: 4, sm: 8 }}>
+    <Box className="app-page" minHeight="100vh" bgcolor="background.default" pb={{ xs: 4, sm: 8 }}>
       <AppBar
+        className="motion-header"
         position="sticky"
         color="inherit"
         elevation={0}
@@ -178,14 +172,16 @@ function UploadLayout() {
                 consent={consent}
                 setConsent={setConsent}
                 onBack={() => navigate("/upload/policy")}
-                onSubmit={() => setSubmitted(true)}
+                onSubmit={() => {
+                  const admission = createAdmission({ identity, policy });
+                  navigate(`/admission/${admission.id}/status`);
+                }}
               />
             }
           />
           <Route path="*" element={<Navigate to="identity" replace />} />
         </Routes>
       </Container>
-      <SuccessModal open={submitted} identity={identity} onClose={reset} />
     </Box>
   );
 }
@@ -197,12 +193,26 @@ function AppRoutes() {
       <Route element={<ProtectedRoute />}>
         <Route path="/upload/*" element={<UploadLayout />} />
       </Route>
+      <Route element={<ProtectedRoute roles={["user"]} />}>
+        <Route
+          path="/admission/:admissionId/status"
+          element={<PatientAdmissionTracker />}
+        />
+        <Route
+          path="/admission/:admissionId/support"
+          element={<PatientSupportOptions />}
+        />
+      </Route>
       <Route element={<ProtectedRoute roles={["admin"]} />}>
         <Route path="/admin/gl-process" element={<AdminPatientQueue />} />
         <Route
           path="/admin/gl-process/:patientId"
           element={<PatientGlProcess />}
         />
+      </Route>
+      <Route element={<ProtectedRoute roles={["doctor"]} />}>
+        <Route path="/doctor/admissions" element={<DoctorReviewQueue />} />
+        <Route path="/doctor/admissions/:patientId" element={<DoctorNoteReview />} />
       </Route>
       <Route path="*" element={<Navigate to="/upload/identity" replace />} />
     </Routes>
@@ -211,7 +221,8 @@ function AppRoutes() {
 
 function PatientGlProcess() {
   const { patientId } = useParams();
-  const patient = pendingPatients.find(item => item.id === patientId);
+  const { admissions } = useWorkflow();
+  const patient = admissions.find(item => item.id === patientId);
 
   return patient ? (
     <HospitalAdminDashboard patient={patient} />
@@ -223,7 +234,9 @@ function PatientGlProcess() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppRoutes />
+      <WorkflowProvider>
+        <AppRoutes />
+      </WorkflowProvider>
     </AuthProvider>
   );
 }

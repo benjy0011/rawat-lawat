@@ -17,7 +17,7 @@ type InsurerChipProps = {
   size?: ChipProps["size"];
 };
 
-export function getInsurerLogo(insurer: string) {
+function getInsurerLogo(insurer: string) {
   return insurerLogos.find(({ match }) =>
     insurer.toLowerCase().includes(match),
   )?.logo;

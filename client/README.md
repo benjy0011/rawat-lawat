@@ -1,62 +1,196 @@
-# Rawat Lawat Client
+# Rawat Lawat — Hospital Admission & Guarantee Letter Platform
 
-Frontend prototype for preparing patient admission requests and coordinating
-doctor, hospital, and insurance review workflows.
+A web platform that coordinates hospital admissions and insurance guarantee
+letter (GL) processing across patients, doctors, hospital administrators, and
+insurers. Patients scan their identity and policy documents once, request an
+admission, and track it end to end; hospital staff review the package, run
+policy eligibility checks against the Policy Vault, and submit it to the
+insurer.
 
-## Requirements
+## Project Structure
+
+```
+client/
+├── public/                 # Static assets and OCR models (downloaded at build)
+├── src/
+│   ├── auth/               # Session handling and role-based access
+│   ├── components/         # Screens and UI, grouped by role
+│   │   ├── admin/          # Hospital administrator dashboard and queues
+│   │   ├── doctor/         # Doctor review and note signing
+│   │   └── insurance/      # Insurer claim review
+│   ├── data/               # Policy Vault and reference data
+│   ├── lib/                # Supabase client and workflow data access
+│   ├── types/              # Shared domain types
+│   ├── utils/              # In-browser OCR (document recognition)
+│   └── workflow/           # Admission workflow state and eligibility rules
+├── supabase-schema.sql     # Database schema (run once in Supabase)
+├── .env.example            # Environment variable template
+└── package.json
+```
+
+## Tech Stack
+
+### Frontend
+
+- **React 19** with the React Compiler
+- **Vite 8** — dev server and build
+- **TypeScript**
+- **MUI 7** and **Tailwind CSS 4** — UI and styling
+- **React Router 7** — routing
+
+### Data & Realtime
+
+- **Supabase (PostgreSQL)** — persistence for patient profiles and admissions
+- **Supabase Realtime** — live status updates shared across roles
+- **@supabase/supabase-js** — browser client (row-level security enforced)
+
+### Document Recognition
+
+- **PaddleOCR** — identity and policy scanning that runs entirely in the browser
+
+## Getting Started
+
+### Prerequisites
 
 - Node.js 22 or newer
 - npm
+- A Supabase project (free tier is sufficient)
 
-## Install and start
+### 1. Install dependencies
 
-Run these commands from the `client` directory:
+From the `client` directory:
 
-```powershell
+```bash
 npm install
+```
+
+For a clean install using the locked dependency versions:
+
+```bash
+npm ci
+```
+
+### 2. Set up the database
+
+In the Supabase dashboard, open **SQL Editor → New query**, paste the contents
+of [`supabase-schema.sql`](./supabase-schema.sql), and run it. This creates the
+`patient_profiles` and `admissions` tables, row-level security policies, and
+enables realtime on `admissions`.
+
+### 3. Configure environment variables
+
+Copy the template and fill in your project values:
+
+```bash
+cp .env.example .env.local
+```
+
+```env
+VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your_key_here
+```
+
+- **Project URL** — Supabase dashboard → Project Settings → Data API
+- **Publishable key** — Project Settings → API Keys (the `sb_publishable_...`
+  key; safe for the browser because row-level security is enabled)
+
+The `sb_secret_...` key must never be placed in the client.
+
+### 4. Start the development server
+
+```bash
 npm run dev
 ```
 
 Open `http://localhost:3000` and keep the terminal running. Press `Ctrl+C` to
-stop the development server.
+stop.
 
-For a clean installation using the locked dependency versions:
+## Demo Accounts
 
-```powershell
-npm ci
-npm run dev
-```
+| Role          | Email                 | Password     |
+| ------------- | --------------------- | ------------ |
+| Patient       | `patient@example.com` | `Patient123!` |
+| Doctor        | `doctor@hospital.com` | `Doctor123!`  |
+| Administrator | `admin@hospital.com`  | `Admin123!`   |
 
-## Demo accounts
+## Sample Data
 
-| Role | Email | Password |
-| --- | --- | --- |
-| Patient | `patient@example.com` | `Patient123!` |
-| Doctor | `doctor@hospital.com` | `Doctor123!` |
-| Administrator | `admin@hospital.com` | `Admin123!` |
+The first time the app loads against an empty database, it seeds four demo
+admissions with matching patient profiles into Supabase, so the hospital and
+doctor views are populated immediately:
 
-Patients can prepare a new request, review their admissions, and track an
-admission through doctor, hospital, and insurance review.
+| Patient            | State                                             |
+| ------------------ | ------------------------------------------------- |
+| Tan Ah Kow         | Signed note, eligible, ready to submit            |
+| Lim Wei Jian       | Signed note, eligible, ready to submit            |
+| Nur Aisha Rahman   | Awaiting the doctor's signature                   |
+| Siti Hawa Ismail   | Not eligible (elective procedure waiting period)  |
 
-## OCR models
+Sign in as the **doctor** to review and sign Nur Aisha Rahman's note, or as the
+**administrator** to review the eligible cases and submit them to the insurer.
 
-Document recognition runs in the browser. The production build downloads the
-required OCR models automatically into `public/models`; generated model files
-are excluded from Git.
+To reset the demo data, clear the `admissions` and `patient_profiles` tables in
+the Supabase dashboard (**Table Editor**); the sample data reseeds on the next
+load.
 
-```powershell
-npm run build
-```
+## Features
 
-The `prebuild` script runs before the Vite build, verifies each model download,
-and ensures the models are included in `dist/models` for deployment. The cloud
-build environment therefore needs outbound internet access.
+### Patient
+
+- One-time identity and policy document scan (kept for future admissions)
+- Request an admission at a chosen hospital with consent
+- Track an admission through onboarding, documents, submission, and the final
+  decision, with a full activity log
+
+### Doctor
+
+- Review the prepared admission note
+- Enter the diagnosis, estimated cost, and recommendation
+- Electronically sign the note
+
+### Hospital Administrator
+
+- Review incoming admission requests and manage the case queue
+- Policy eligibility checks against the Policy Vault (active policy, coverage,
+  waiting periods, and sum insured)
+- Pre-submission package review and submission to the insurer
+- Policy Vault, patient case registry, and analytics
+
+### Insurer
+
+- Review the submitted guarantee letter package and record the decision
+
+### Platform
+
+- Shared, persistent state — an update by one role appears live for the others
+- Guarantee letter package assembly from patient, policy, and clinical data
 
 ## Commands
 
-```powershell
+```bash
 npm run dev      # Start the development server
 npm run build    # Download OCR models and create a production build
 npm run lint     # Run ESLint
 npm run preview  # Preview the production build
 ```
+
+## OCR Models
+
+Document recognition runs in the browser. The `prebuild` script downloads the
+required OCR models into `public/models` before the Vite build and ensures they
+are included in `dist/models` for deployment; generated model files are excluded
+from Git. The build environment therefore needs outbound internet access.
+
+```bash
+npm run build
+```
+
+## Deployment
+
+The app is a static build and deploys to any static host (e.g. Vercel). Set the
+same `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` environment
+variables in the hosting provider so the production build can reach Supabase.
+
+## License
+
+MIT

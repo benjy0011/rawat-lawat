@@ -5,6 +5,7 @@ import { getPatientGenderFromNric } from "../types/patient";
 import type { Identity, Policy } from "../types/onboarding";
 
 export type AdmissionStatus =
+  | "PENDING_ADMIN_APPROVAL"
   | "AI_PREPARING"
   | "DOCTOR_REVIEW"
   | "ADMIN_REVIEW"
@@ -15,6 +16,8 @@ export type AdmissionStatus =
   | "INSURANCE_FINAL_REJECTED";
 
 export type InsurerOutcome = "APPROVE" | "REJECT" | "FINAL_REJECT";
+
+export type PolicyEligibility = "ELIGIBLE" | "NOT_ELIGIBLE";
 
 export type WorkflowEvent = {
   actor: "Patient" | "AI Assistant" | "Doctor" | "Administrator" | "Insurance";
@@ -27,23 +30,43 @@ export type RetrievedDocument = {
   name: string;
   source: string;
   detail: string;
-  submissionStatus: "Ready to submit" | "Requires review";
+  submissionStatus: "Ready to submit" | "Requires review" | "Reference only";
+};
+
+export type PolicyCheck = {
+  id: "active" | "covered" | "exclusions" | "sum-insured";
+  question: string;
+  status: "pending" | "checking" | "passed";
 };
 
 export type AdmissionRecord = PendingPatient & {
   patientEmail?: string;
+  hospitalName: string;
+  consentedAt: string;
   status: AdmissionStatus;
   doctorNote: {
     summary: string;
+    diagnosis?: string;
+    estimatedCost?: string;
+    recommendation?: string;
     signed: boolean;
     signedBy?: string;
     signedAt?: string;
+    signatureImage?: string;
   };
   insurerFeedback?: string[];
   submissionAttempts: number;
   nextInsurerOutcome: InsurerOutcome;
+  policyEligibility: PolicyEligibility;
   retrievedDocuments: RetrievedDocument[];
+  policyChecks: PolicyCheck[];
   timeline: WorkflowEvent[];
+};
+
+export type PatientProfile = {
+  patientEmail: string;
+  identity: Identity;
+  policy: Policy;
 };
 
 type CreateAdmissionInput = {
@@ -54,10 +77,25 @@ type CreateAdmissionInput = {
 
 type WorkflowContextValue = {
   admissions: AdmissionRecord[];
-  createAdmission: (input: CreateAdmissionInput) => AdmissionRecord;
-  signDoctorNote: (id: string, signatureName: string) => void;
+  profiles: PatientProfile[];
+  saveProfile: (input: CreateAdmissionInput) => void;
+  requestAdmission: (
+    patientEmail: string,
+    hospitalName: string,
+  ) => AdmissionRecord | null;
+  approveAdmission: (id: string) => void;
+  signDoctorNote: (
+    id: string,
+    signatureName: string,
+    diagnosis: string,
+    estimatedCost: string,
+    recommendation: string,
+    signatureImage: string,
+  ) => void;
   submitToInsurer: (id: string) => void;
-  setNextInsurerOutcome: (id: string, outcome: InsurerOutcome) => void;
+  reviewInsurerClaim: (id: string, outcome: InsurerOutcome) => void;
+  sendNudge: (id: string) => void;
+  setPolicyEligibility: (id: string, eligibility: PolicyEligibility) => void;
 };
 
 const WorkflowContext = createContext<WorkflowContextValue | undefined>(
@@ -68,6 +106,20 @@ const rejectionRequirements = [
   "Attach the latest laboratory result",
   "Confirm the estimated admission cost",
 ];
+
+const policyCheckQuestions: PolicyCheck[] = [
+  { id: "active", question: "Is this policy active?", status: "pending" },
+  { id: "covered", question: "Is this condition covered?", status: "pending" },
+  { id: "exclusions", question: "Any exclusions or waiting period issues?", status: "pending" },
+  { id: "sum-insured", question: "Is cost within sum insured?", status: "pending" },
+];
+
+function policyChecks(checkingIndex = -1): PolicyCheck[] {
+  return policyCheckQuestions.map((check, index) => ({
+    ...check,
+    status: index < checkingIndex ? "passed" : index === checkingIndex ? "checking" : "pending",
+  }));
+}
 
 function event(
   actor: WorkflowEvent["actor"],
@@ -91,6 +143,8 @@ function makeSeedAdmission(
 
   return {
     ...patient,
+    hospitalName: "Central Hospital HQ",
+    consentedAt: "Today, 10:30 AM",
     status: awaitingDoctorReview ? "DOCTOR_REVIEW" : "ADMIN_REVIEW",
     doctorNote: {
       summary: `${patient.admissionReason} assessed; admission and treatment are clinically indicated.`,
@@ -100,7 +154,9 @@ function makeSeedAdmission(
     },
     submissionAttempts: 0,
     nextInsurerOutcome: index === 0 ? "REJECT" : "APPROVE",
+    policyEligibility: "ELIGIBLE",
     retrievedDocuments: createRetrievedDocuments(!awaitingDoctorReview),
+    policyChecks: policyChecks(policyCheckQuestions.length),
     timeline: [
       event("Patient", "Admission details submitted"),
       event("AI Assistant", "Admission package and doctor note prepared"),
@@ -128,6 +184,14 @@ function createRetrievedDocuments(doctorNoteSigned: boolean): RetrievedDocument[
       name: "Policy eligibility summary",
       source: "Policy Vault",
       detail: "Active member, plan, and panel-hospital eligibility confirmed.",
+      submissionStatus: "Reference only",
+    },
+    {
+      id: "full-policy-document",
+      name: "Full policy document",
+      source: "Policy Vault",
+      detail:
+        "Mock policy schedule and inpatient coverage terms retrieved for submission.",
       submissionStatus: "Ready to submit",
     },
     {
@@ -163,6 +227,7 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
   const [admissions, setAdmissions] = useState<AdmissionRecord[]>(() =>
     pendingPatients.map(makeSeedAdmission),
   );
+  const [profiles, setProfiles] = useState<PatientProfile[]>([]);
 
   const updateAdmission = (
     id: string,
@@ -173,15 +238,33 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
-  const createAdmission = ({
+  const saveProfile = ({
     identity,
     policy,
     patientEmail,
   }: CreateAdmissionInput) => {
+    setProfiles(current => {
+      const profile = { patientEmail, identity, policy };
+      return current.some(item => item.patientEmail === patientEmail)
+        ? current.map(item =>
+            item.patientEmail === patientEmail ? profile : item,
+          )
+        : [...current, profile];
+    });
+  };
+
+  const requestAdmission = (patientEmail: string, hospitalName: string) => {
+    const profile = profiles.find(item => item.patientEmail === patientEmail);
+
+    if (!profile) return null;
+
+    const { identity, policy } = profile;
     const id = `admission-${Date.now()}`;
     const admission: AdmissionRecord = {
       id,
       patientEmail,
+      hospitalName,
+      consentedAt: "Just now",
       name: identity.fullName,
       gender: identity.gender || getPatientGenderFromNric(identity.nric),
       medicalRecordNumber: `CH-${Math.floor(100000 + Math.random() * 899999)}`,
@@ -191,21 +274,52 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
       requestedAt: "Just now",
       admissionReason: "Admission assessment",
       priority: "Standard",
-      status: "AI_PREPARING",
+      status: "PENDING_ADMIN_APPROVAL",
       doctorNote: { summary: "", signed: false },
       submissionAttempts: 0,
       nextInsurerOutcome: "APPROVE",
+      policyEligibility: "ELIGIBLE",
       retrievedDocuments: createRetrievedDocuments(false),
-      timeline: [event("Patient", "Admission details submitted")],
+      policyChecks: policyChecks(),
+      timeline: [
+        event(
+          "Patient",
+          `Selected ${hospitalName} and consented to share admission data`,
+        ),
+      ],
     };
 
     setAdmissions(current => [admission, ...current]);
+    return admission;
+  };
+
+  const approveAdmission = (id: string) => {
+    updateAdmission(id, record =>
+      addEvent(
+        { ...record, status: "AI_PREPARING", policyChecks: policyChecks(0) },
+        {
+          actor: "Administrator",
+          message: "Hospital approved the admission request",
+        },
+      ),
+    );
+
+    [1, 2, 3].forEach(index => {
+      window.setTimeout(() => {
+        updateAdmission(id, record => ({
+          ...record,
+          policyChecks: policyChecks(index),
+        }));
+      }, index * 1500);
+    });
+
     window.setTimeout(() => {
       updateAdmission(id, record =>
         addEvent(
           {
             ...record,
             status: "DOCTOR_REVIEW",
+            policyChecks: policyChecks(policyCheckQuestions.length),
             doctorNote: {
               signed: false,
               summary:
@@ -219,11 +333,17 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
           },
         ),
       );
-    }, 2400);
-    return admission;
+    }, 6000);
   };
 
-  const signDoctorNote = (id: string, signatureName: string) => {
+  const signDoctorNote = (
+    id: string,
+    signatureName: string,
+    diagnosis: string,
+    estimatedCost: string,
+    recommendation: string,
+    signatureImage: string,
+  ) => {
     updateAdmission(id, record =>
       addEvent(
         {
@@ -231,12 +351,16 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
           status: "ADMIN_REVIEW",
           doctorNote: {
             ...record.doctorNote,
+            diagnosis,
+            estimatedCost,
+            recommendation,
             signed: true,
             signedBy: signatureName,
             signedAt: new Date().toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",
             }),
+            signatureImage,
           },
           retrievedDocuments: createRetrievedDocuments(true),
         },
@@ -283,12 +407,11 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
     if (
       !currentAdmission ||
       currentAdmission.status !== "ADMIN_REVIEW" ||
-      !currentAdmission.doctorNote.signed
+      !currentAdmission.doctorNote.signed ||
+      currentAdmission.policyEligibility !== "ELIGIBLE"
     ) {
       return;
     }
-
-    const insurerOutcome = currentAdmission?.nextInsurerOutcome ?? "APPROVE";
 
     updateAdmission(id, record =>
       addEvent(
@@ -303,49 +426,78 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
         },
       ),
     );
-
-    window.setTimeout(() => {
-      updateAdmission(id, record => {
-        if (insurerOutcome === "REJECT") {
-          return addEvent(
-              {
-                ...record,
-                status: "INSURANCE_REJECTED",
-                insurerFeedback: rejectionRequirements,
-              },
-              {
-                actor: "Insurance",
-                message: "Claim rejected with additional requirements",
-              },
-            );
-        }
-
-        if (insurerOutcome === "FINAL_REJECT") {
-          return addEvent(
-            { ...record, status: "INSURANCE_FINAL_REJECTED" },
-            { actor: "Insurance", message: "Claim declined by insurer" },
-          );
-        }
-
-        return addEvent(
-          { ...record, status: "INSURANCE_APPROVED" },
-          { actor: "Insurance", message: "Claim approved" },
-        );
-      });
-      if (insurerOutcome === "REJECT") beginResubmission(id);
-    }, 2200);
   };
 
-  const setNextInsurerOutcome = (id: string, outcome: InsurerOutcome) => {
-    updateAdmission(id, record => ({ ...record, nextInsurerOutcome: outcome }));
+  const reviewInsurerClaim = (id: string, outcome: InsurerOutcome) => {
+    const currentAdmission = admissions.find(record => record.id === id);
+
+    if (!currentAdmission || currentAdmission.status !== "SUBMITTING_TO_INSURANCE") {
+      return;
+    }
+
+    updateAdmission(id, record => {
+      if (outcome === "REJECT") {
+        return addEvent(
+          {
+            ...record,
+            status: "INSURANCE_REJECTED",
+            insurerFeedback: rejectionRequirements,
+          },
+          {
+            actor: "Insurance",
+            message: "Additional document required",
+          },
+        );
+      }
+
+      if (outcome === "FINAL_REJECT") {
+        return addEvent(
+          { ...record, status: "INSURANCE_FINAL_REJECTED" },
+          { actor: "Insurance", message: "Claim declined by insurer" },
+        );
+      }
+
+      return addEvent(
+        { ...record, status: "INSURANCE_APPROVED" },
+        { actor: "Insurance", message: "Claim approved" },
+      );
+    });
+
+    if (outcome === "REJECT") {
+      beginResubmission(id);
+    }
+  };
+
+  const sendNudge = (id: string) => {
+    updateAdmission(id, record => {
+      const recipient =
+        record.status === "DOCTOR_REVIEW" ? "doctor" : "insurer reviewer";
+
+      return addEvent(record, {
+        actor: "Administrator",
+        message: `Reminder sent to the ${recipient} after more than five hours without a response`,
+      });
+    });
+  };
+
+  const setPolicyEligibility = (
+    id: string,
+    eligibility: PolicyEligibility,
+  ) => {
+    updateAdmission(id, record => ({ ...record, policyEligibility: eligibility }));
   };
 
   const value = {
     admissions,
-    createAdmission,
+    profiles,
+    saveProfile,
+    requestAdmission,
+    approveAdmission,
     signDoctorNote,
     submitToInsurer,
-    setNextInsurerOutcome,
+    reviewInsurerClaim,
+    sendNudge,
+    setPolicyEligibility,
   };
 
   return (

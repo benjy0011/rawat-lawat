@@ -34,8 +34,12 @@ import { PatientAdmissions } from "./components/PatientAdmissions";
 import { PatientSupportOptions } from "./components/PatientSupportOptions";
 import { HospitalAdminDashboard } from "./components/admin/HospitalAdminDashboard";
 import { AdminPatientQueue } from "./components/admin/AdminPatientQueue";
+import { PolicyVault } from "./components/admin/PolicyVault";
+import { AdminAnalyticsDashboard } from "./components/admin/AdminAnalyticsDashboard";
+import { HospitalPatientRegistry } from "./components/admin/HospitalPatientRegistry";
 import { DoctorNoteReview } from "./components/doctor/DoctorNoteReview";
 import { DoctorReviewQueue } from "./components/doctor/DoctorReviewQueue";
+import { InsuranceClaimReview } from "./components/insurance/InsuranceClaimReview";
 import { emptyIdentity, emptyPolicy } from "./types/onboarding";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
 import { WorkflowProvider, useWorkflow } from "./workflow/AdmissionWorkflowContext";
@@ -44,7 +48,7 @@ function UploadLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { session, signOut } = useAuth();
-  const { createAdmission } = useWorkflow();
+  const { saveProfile } = useWorkflow();
   const [identity, setIdentity] = useState(emptyIdentity);
   const [policy, setPolicy] = useState(emptyPolicy);
   const [identityImage, setIdentityImage] = useState("");
@@ -181,12 +185,12 @@ function UploadLayout() {
                 onSubmit={() => {
                   if (!session) return;
 
-                  const admission = createAdmission({
+                  saveProfile({
                     identity,
                     policy,
                     patientEmail: session.email,
                   });
-                  navigate(`/admission/${admission.id}/status`);
+                  navigate("/patient/admissions");
                 }}
               />
             }
@@ -219,6 +223,9 @@ function AppRoutes() {
       </Route>
       <Route element={<ProtectedRoute roles={["admin"]} />}>
         <Route path="/admin/gl-process" element={<AdminPatientQueue />} />
+        <Route path="/admin/policy-vault" element={<PolicyVault />} />
+        <Route path="/admin/patients" element={<HospitalPatientRegistry />} />
+        <Route path="/admin/analytics" element={<AdminAnalyticsDashboard />} />
         <Route
           path="/admin/gl-process/:patientId"
           element={<PatientGlProcess />}
@@ -227,6 +234,12 @@ function AppRoutes() {
       <Route element={<ProtectedRoute roles={["doctor"]} />}>
         <Route path="/doctor/admissions" element={<DoctorReviewQueue />} />
         <Route path="/doctor/admissions/:patientId" element={<DoctorNoteReview />} />
+      </Route>
+      <Route element={<ProtectedRoute />}>
+        <Route
+          path="/insurance/review/:patientId"
+          element={<InsuranceClaimReview />}
+        />
       </Route>
       <Route path="*" element={<RoleLanding />} />
     </Routes>

@@ -20,6 +20,7 @@ import { DoctorShell } from "./DoctorShell";
 type QueueView = "awaiting" | "reviewed";
 
 const workflowStatusLabels: Record<AdmissionStatus, string> = {
+  PENDING_ADMIN_APPROVAL: "Awaiting hospital approval",
   AI_PREPARING: "Preparing",
   DOCTOR_REVIEW: "Doctor review",
   ADMIN_REVIEW: "Hospital review",

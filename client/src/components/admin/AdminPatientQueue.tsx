@@ -12,6 +12,7 @@ import { useWorkflow } from "../../workflow/AdmissionWorkflowContext";
 import { InsurerChip } from "../InsurerChip";
 import { PatientName } from "../PatientName";
 import { AdminShell } from "./AdminShell";
+import { ChevronRight } from "@mui/icons-material";
 
 const reviewStatuses = new Set([
   "DOCTOR_REVIEW",
@@ -22,12 +23,25 @@ const reviewStatuses = new Set([
 
 export function AdminPatientQueue() {
   const navigate = useNavigate();
-  const { admissions } = useWorkflow();
-  const queue = admissions.filter(admission => reviewStatuses.has(admission.status));
+  const { admissions, approveAdmission } = useWorkflow();
+  const hospitalAdmissions = admissions.filter(
+    admission => admission.hospitalName === "Central Hospital HQ",
+  );
+  const pendingRequests = hospitalAdmissions.filter(
+    admission => admission.status === "PENDING_ADMIN_APPROVAL",
+  );
+  const queue = hospitalAdmissions.filter(admission => reviewStatuses.has(admission.status));
 
   return (
     <AdminShell>
-      <Box className="motion-enter" component="main" maxWidth="lg" mx="auto" px={{ xs: 2.5, lg: 5 }} py={4}>
+      <Box
+        className="motion-enter"
+        component="main"
+        maxWidth="lg"
+        mx="auto"
+        px={{ xs: 2.5, lg: 5 }}
+        py={4}
+      >
         <Typography variant="overline" color="primary" fontWeight={800} letterSpacing=".12em">
           Admissions
         </Typography>
@@ -35,8 +49,56 @@ export function AdminPatientQueue() {
           Admission packages
         </Typography>
         <Typography variant="body2" color="text.secondary" mt={1}>
-          AI-prepared packages are available for review. Submission remains locked until the doctor signs the clinical note.
+          Only patients who consented to Central Hospital HQ appear here.
         </Typography>
+
+        {pendingRequests.length > 0 && (
+          <Card
+            variant="outlined"
+            sx={{
+              mt: 3,
+              borderColor: "primary.main",
+              bgcolor: "rgba(0, 61, 155, 0.04)",
+            }}
+          >
+            <CardContent>
+              <Typography fontWeight={700}>
+                Admission requests ({pendingRequests.length})
+              </Typography>
+              <Typography variant="body2" color="text.secondary" mt={0.5}>
+                Approve a patient&apos;s request to admit to Central Hospital HQ.
+              </Typography>
+              <Stack spacing={1.5} mt={2}>
+                {pendingRequests.map(admission => (
+                  <Stack
+                    key={admission.id}
+                    direction={{ xs: "column", sm: "row" }}
+                    alignItems={{ sm: "center" }}
+                    justifyContent="space-between"
+                    spacing={1}
+                  >
+                    <Box>
+                      <PatientName
+                        name={admission.name}
+                        gender={admission.gender}
+                      />
+                      <Typography variant="body2" color="text.secondary">
+                        Consent received {admission.consentedAt}
+                      </Typography>
+                    </Box>
+                    <Button
+                      variant="contained"
+                      onClick={() => approveAdmission(admission.id)}
+                      endIcon={<ChevronRight />}
+                    >
+                      Approve admission
+                    </Button>
+                  </Stack>
+                ))}
+              </Stack>
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="motion-card motion-enter motion-enter-delay-2" variant="outlined" sx={{ mt: 4 }}>
           <CardContent sx={{ p: 0, "&:last-child": { pb: 0 } }}>

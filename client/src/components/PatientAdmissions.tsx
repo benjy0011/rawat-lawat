@@ -1,14 +1,22 @@
 import {
   AppBar,
+  Autocomplete,
   Avatar,
   Box,
   Button,
   Card,
   CardContent,
+  Checkbox,
   Chip,
   Container,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControlLabel,
   IconButton,
   Stack,
+  TextField,
   Toolbar,
   Typography,
 } from "@mui/material";
@@ -16,188 +24,206 @@ import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
+import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import type { AdmissionStatus } from "../workflow/AdmissionWorkflowContext";
 import { useWorkflow } from "../workflow/AdmissionWorkflowContext";
 
-const statusDetails: Record<
-  AdmissionStatus,
-  {
-    label: string;
-    description: string;
-    color: "info" | "warning" | "success" | "error";
-  }
-> = {
-  AI_PREPARING: {
-    label: "Preparing",
-    description: "Your admission package is being prepared.",
-    color: "info",
-  },
-  DOCTOR_REVIEW: {
-    label: "Doctor review",
-    description: "Your doctor is reviewing the clinical note.",
-    color: "warning",
-  },
-  ADMIN_REVIEW: {
-    label: "Hospital review",
-    description: "The hospital is completing your submission package.",
-    color: "warning",
-  },
-  SUBMITTING_TO_INSURANCE: {
-    label: "With insurer",
-    description: "Your request has been sent to the insurer.",
-    color: "info",
-  },
-  INSURANCE_REJECTED: {
-    label: "Update required",
-    description: "The hospital is preparing additional information.",
-    color: "warning",
-  },
-  AI_RESUBMISSION: {
-    label: "Updating",
-    description: "Your submission is being updated for the insurer.",
-    color: "info",
-  },
-  INSURANCE_APPROVED: {
-    label: "Confirmed",
-    description: "Your insurer has approved the admission request.",
-    color: "success",
-  },
-  INSURANCE_FINAL_REJECTED: {
-    label: "Final decision",
-    description: "Contact the hospital to discuss your available options.",
-    color: "error",
-  },
+const hospitals = [
+  "Central Hospital HQ",
+  "Lakeside Medical Centre",
+  "City Specialist Hospital",
+];
+
+const labels: Record<AdmissionStatus, string> = {
+  PENDING_ADMIN_APPROVAL: "Awaiting hospital approval",
+  AI_PREPARING: "Preparing package",
+  DOCTOR_REVIEW: "Doctor review",
+  ADMIN_REVIEW: "Hospital review",
+  SUBMITTING_TO_INSURANCE: "With insurer",
+  INSURANCE_REJECTED: "Update required",
+  AI_RESUBMISSION: "Updating",
+  INSURANCE_APPROVED: "Confirmed",
+  INSURANCE_FINAL_REJECTED: "Final decision",
 };
 
 export function PatientAdmissions() {
   const navigate = useNavigate();
   const { session, signOut } = useAuth();
-  const { admissions } = useWorkflow();
+  const { admissions, profiles, requestAdmission } = useWorkflow();
+  const [open, setOpen] = useState(false);
+  const [hospital, setHospital] = useState(hospitals[0]);
+  const [consent, setConsent] = useState(false);
 
   if (!session) return <Navigate to="/login" replace />;
 
-  const patientAdmissions = admissions.filter(
-    admission => admission.patientEmail === session.email,
-  );
+  const profile = profiles.find(item => item.patientEmail === session.email);
+  const mine = admissions.filter(item => item.patientEmail === session.email);
+
+  const submit = () => {
+    const admission = requestAdmission(session.email, hospital);
+
+    if (admission) {
+      navigate(`/admission/${admission.id}/status`);
+    }
+  };
 
   const handleSignOut = () => {
     signOut();
-    navigate("/login", { replace: true });
+    navigate("/login");
   };
 
   return (
-    <Box className="app-page" minHeight="100vh" bgcolor="background.default">
-      <AppBar position="sticky" color="inherit" elevation={0} sx={{ borderBottom: 1, borderColor: "divider" }}>
-        <Toolbar sx={{ maxWidth: 1120, width: "100%", mx: "auto", px: { xs: 2.5, sm: 3 } }}>
-          <Typography variant="h6" fontWeight={800} color="primary.main">
+    <Box minHeight="100vh" bgcolor="background.default">
+      <AppBar position="sticky" color="inherit" elevation={0}>
+        <Toolbar sx={{ maxWidth: 1120, width: "100%", mx: "auto" }}>
+          <Typography variant="h6" fontWeight={800} color="primary">
             Rawat Lawat
           </Typography>
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ ml: "auto" }}>
-            <Avatar sx={{ width: 32, height: 32, bgcolor: "primary.main", fontSize: 13, fontWeight: 800 }}>
-              {session.name[0]}
-            </Avatar>
-            <Typography variant="body2" fontWeight={700} sx={{ display: { xs: "none", sm: "block" } }}>
-              {session.name}
-            </Typography>
-            <IconButton aria-label="Sign out" onClick={handleSignOut}>
-              <LogoutRoundedIcon fontSize="small" />
+          <Stack direction="row" alignItems="center" spacing={1} ml="auto">
+            <Avatar>{session.name[0]}</Avatar>
+            <IconButton onClick={handleSignOut} aria-label="Sign out">
+              <LogoutRoundedIcon />
             </IconButton>
           </Stack>
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="md" sx={{ py: { xs: 4, sm: 6 } }}>
+      <Container maxWidth="md" sx={{ py: 5 }}>
         <Stack
-          className="motion-enter"
           direction={{ xs: "column", sm: "row" }}
-          alignItems={{ xs: "stretch", sm: "flex-start" }}
           justifyContent="space-between"
           spacing={2}
         >
           <Box>
-            <Typography variant="overline" color="primary" fontWeight={800} letterSpacing=".12em">
+            <Typography variant="overline" color="primary" fontWeight={800}>
               Patient portal
             </Typography>
-            <Typography variant="h4" mt={0.5}>
-              My admissions
-            </Typography>
+            <Typography variant="h4">My admissions</Typography>
             <Typography color="text.secondary" mt={1}>
-              Follow active requests and return whenever you need an update.
+              {profile
+                ? "Select a hospital when you are ready to request admission."
+                : "Complete your profile once to request admission at any hospital."}
             </Typography>
           </Box>
           <Button
             variant="contained"
             startIcon={<AddRoundedIcon />}
-            onClick={() => navigate("/upload/identity")}
+            style={{
+              height: 'fit-content'
+            }}
+            onClick={() =>
+              profile ? setOpen(true) : navigate("/upload/identity")
+            }
           >
-            Start new admission
+            {profile ? "Request admission" : "Complete profile"}
           </Button>
         </Stack>
 
-        {patientAdmissions.length === 0 ? (
-          <Card className="motion-card motion-enter motion-enter-delay-1" variant="outlined" sx={{ mt: 4 }}>
-            <CardContent sx={{ p: { xs: 4, sm: 6 }, textAlign: "center" }}>
-              <Avatar variant="rounded" sx={{ width: 54, height: 54, mx: "auto", bgcolor: "primary.50", color: "primary.main" }}>
-                <AssignmentOutlinedIcon />
-              </Avatar>
+        {mine.length === 0 ? (
+          <Card variant="outlined" sx={{ mt: 4 }}>
+            <CardContent sx={{ textAlign: "center", py: 6 }}>
+              <AssignmentOutlinedIcon color="primary" fontSize="large" />
               <Typography variant="h6" mt={2}>
                 No admissions yet
               </Typography>
               <Typography color="text.secondary" mt={1}>
-                Prepare your identity and coverage details to begin a request.
+                Your profile stays ready; choose a hospital only when you need
+                admission.
               </Typography>
-              <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => navigate("/upload/identity")} sx={{ mt: 3 }}>
-                Start your first admission
-              </Button>
             </CardContent>
           </Card>
         ) : (
           <Stack spacing={2} mt={4}>
-            {patientAdmissions.map((admission, index) => {
-              const status = statusDetails[admission.status];
-
-              return (
-                <Card
-                  key={admission.id}
-                  className={`motion-card motion-enter motion-enter-delay-${Math.min(index + 1, 4)}`}
-                  variant="outlined"
-                >
-                  <CardContent sx={{ p: { xs: 3, sm: 3.5 } }}>
-                    <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={2}>
-                      <Box>
-                        <Stack direction="row" alignItems="center" flexWrap="wrap" spacing={1}>
-                          <Typography variant="h6" fontWeight={700}>
-                            {admission.name}
-                          </Typography>
-                          <Chip label={status.label} color={status.color} size="small" />
-                        </Stack>
-                        <Typography variant="body2" color="text.secondary" mt={0.5}>
-                          Reference: {admission.medicalRecordNumber}
-                        </Typography>
-                        <Typography variant="body2" mt={2}>
-                          {status.description}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary" display="block" mt={1}>
-                          {admission.insurer || "Insurer not specified"} · {admission.requestedAt}
-                        </Typography>
-                      </Box>
-                      <Button
-                        variant="outlined"
-                        endIcon={<ArrowForwardRoundedIcon />}
-                        onClick={() => navigate(`/admission/${admission.id}/status`)}
-                        sx={{ alignSelf: { xs: "stretch", sm: "center" }, flexShrink: 0 }}
-                      >
-                        View status
-                      </Button>
-                    </Stack>
-                  </CardContent>
-                </Card>
-              );
-            })}
+            {mine.map(item => (
+              <Card key={item.id} variant="outlined">
+                <CardContent>
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    justifyContent="space-between"
+                    spacing={2}
+                  >
+                    <Box>
+                      <Chip
+                        size="small"
+                        label={labels[item.status]}
+                        color={
+                          item.status === "INSURANCE_APPROVED"
+                            ? "success"
+                            : "info"
+                        }
+                      />
+                      <Typography variant="h6" mt={1}>
+                        {item.hospitalName}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Consent given {item.consentedAt} ·{" "}
+                        {item.medicalRecordNumber}
+                      </Typography>
+                    </Box>
+                    <Button
+                      style={{
+                        height: "fit-content",
+                        alignSelf: "center"
+                      }}
+                      variant="outlined"
+                      endIcon={<ArrowForwardRoundedIcon />}
+                      onClick={() =>
+                        navigate(`/admission/${item.id}/status`)
+                      }
+                    >
+                      View status
+                    </Button>
+                  </Stack>
+                </CardContent>
+              </Card>
+            ))}
           </Stack>
         )}
+
+        <Dialog
+          open={open}
+          onClose={() => setOpen(false)}
+          fullWidth
+          maxWidth="sm"
+        >
+          <DialogTitle>Request admission</DialogTitle>
+          <DialogContent>
+            <Typography color="text.secondary">
+              Choose the hospital that may access your profile for this
+              admission request.
+            </Typography>
+            <Autocomplete
+              options={hospitals}
+              value={hospital}
+              onChange={(_, value) => value && setHospital(value)}
+              renderInput={params => (
+                <TextField
+                  {...params}
+                  label="Search hospitals"
+                  placeholder="Type a hospital name"
+                />
+              )}
+              sx={{ mt: 2 }}
+            />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={consent}
+                  onChange={event => setConsent(event.target.checked)}
+                />
+              }
+              label="I consent to share my profile and insurance information with this hospital for this admission request."
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setOpen(false)}>Cancel</Button>
+            <Button variant="contained" disabled={!consent} onClick={submit}>
+              Send admission request
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Container>
     </Box>
   );

@@ -37,6 +37,13 @@ type PatientStatus = {
 };
 
 const patientStatus: Record<AdmissionStatus, PatientStatus> = {
+  PENDING_ADMIN_APPROVAL: {
+    activeStep: 0,
+    heading: "Your selected hospital is reviewing the request",
+    detail:
+      "Your admission request and consent have been sent to the hospital. AI preparation begins after hospital approval.",
+    chipColor: "info",
+  },
   AI_PREPARING: {
     activeStep: 1,
     heading: "We’re preparing your admission package",
@@ -106,7 +113,14 @@ export function PatientAdmissionTracker() {
   const isFinalRejected = admission.status === "INSURANCE_FINAL_REJECTED";
 
   return (
-    <Box className="app-page" component="main" minHeight="100vh" bgcolor="background.default" px={{ xs: 2.5, lg: 5 }} py={4}>
+    <Box
+      className="app-page"
+      component="main"
+      minHeight="100vh"
+      bgcolor="background.default"
+      px={{ xs: 2.5, lg: 5 }}
+      py={4}
+    >
       <Box maxWidth="sm" mx="auto">
         <Stack
           className="motion-enter"

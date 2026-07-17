@@ -27,7 +27,7 @@ export function InsurerLabel({ insurer }: { insurer: string }) {
   const logo = getInsurerLogo(insurer);
 
   return (
-    <Box component="span" display="inline-flex" alignItems="center" gap={0.75}>
+    <Box component="span" display="inline-flex" alignItems="center" paddingTop={"4.5px"} gap={0.75}>
       {logo && (
         <Box
           component="img"

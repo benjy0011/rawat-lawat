@@ -4,35 +4,35 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
   Chip,
+  CircularProgress,
   Divider,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  FormControl,
   FormControlLabel,
   IconButton,
-  Radio,
-  RadioGroup,
   Stack,
   Tooltip,
   Typography,
 } from "@mui/material";
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
-import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
-import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
+import CancelRoundedIcon from "@mui/icons-material/CancelRounded";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import FactCheckOutlinedIcon from "@mui/icons-material/FactCheckOutlined";
 import LocalHospitalOutlinedIcon from "@mui/icons-material/LocalHospitalOutlined";
+import NotificationsActiveRoundedIcon from "@mui/icons-material/NotificationsActiveRounded";
 import PersonOutlineRoundedIcon from "@mui/icons-material/PersonOutlineRounded";
-import PolicyOutlinedIcon from "@mui/icons-material/PolicyOutlined";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import SmartToyOutlinedIcon from "@mui/icons-material/SmartToyOutlined";
 import SupportAgentRoundedIcon from "@mui/icons-material/SupportAgentRounded";
+import TaskAltRoundedIcon from "@mui/icons-material/TaskAltRounded";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import aiaPolicyDocument from "../../assets/aia_policy.pdf";
 import xRayImage from "../../assets/x-ray.jpeg";
 import {
   AdmissionNoteDocument,
@@ -47,7 +47,6 @@ import TimelineSeparator from "@mui/lab/TimelineSeparator";
 import type {
   AdmissionRecord,
   AdmissionStatus,
-  InsurerOutcome,
   RetrievedDocument,
   WorkflowEvent,
 } from "../../workflow/AdmissionWorkflowContext";
@@ -64,6 +63,11 @@ type StatusDetails = {
 };
 
 const statusDetails: Record<AdmissionStatus, StatusDetails> = {
+  PENDING_ADMIN_APPROVAL: {
+    label: "Awaiting hospital approval",
+    detail: "The patient has consented to share data with this hospital. Approve the request to begin AI preparation.",
+    color: "info",
+  },
   AI_PREPARING: {
     label: "AI preparing",
     detail: "The AI is gathering admission data and drafting the doctor note.",
@@ -108,28 +112,6 @@ const statusDetails: Record<AdmissionStatus, StatusDetails> = {
   },
 };
 
-const preparationSteps: Array<{
-  title: string;
-  detail: string;
-  icon: ReactNode;
-}> = [
-  {
-    title: "Retrieving verified patient details",
-    detail: "Matching identity, member ID, and admission information.",
-    icon: <FactCheckOutlinedIcon />,
-  },
-  {
-    title: "Checking policy and panel eligibility",
-    detail: "Confirming coverage and hospital eligibility for this admission.",
-    icon: <PolicyOutlinedIcon />,
-  },
-  {
-    title: "Preparing the GL submission package",
-    detail: "Organising clinical notes, supporting data, and insurer requirements.",
-    icon: <DescriptionOutlinedIcon />,
-  },
-];
-
 const timelineEventStyles: Record<
   WorkflowEvent["actor"],
   { color: string; backgroundColor: string; icon: ReactNode }
@@ -161,6 +143,19 @@ const timelineEventStyles: Record<
   },
 };
 
+const nudgeDetails: Partial<
+  Record<AdmissionStatus, { recipient: string; waitingTime: string }>
+> = {
+  DOCTOR_REVIEW: {
+    recipient: "doctor",
+    waitingTime: "5h 18m",
+  },
+  SUBMITTING_TO_INSURANCE: {
+    recipient: "insurer reviewer",
+    waitingTime: "5h 42m",
+  },
+};
+
 export function HospitalAdminDashboard({
   patient,
 }: {
@@ -175,59 +170,99 @@ function HospitalAdminDashboardContent({
   patient: AdmissionRecord;
 }) {
   const navigate = useNavigate();
-  const { submitToInsurer, setNextInsurerOutcome } = useWorkflow();
-  const [isPreparing, setIsPreparing] = useState(true);
-  const [activePreparationStep, setActivePreparationStep] = useState(0);
-  const [resubmissionStep, setResubmissionStep] = useState(0);
+  const { sendNudge, submitToInsurer } = useWorkflow();
   const [selectedDocument, setSelectedDocument] = useState<RetrievedDocument | null>(null);
+  const [timelineExpanded, setTimelineExpanded] = useState(false);
+  const [isAiCheckingSubmission, setIsAiCheckingSubmission] = useState(false);
+  const [isAiCheckComplete, setIsAiCheckComplete] = useState(false);
+  const [checkedSubmissionAttempt, setCheckedSubmissionAttempt] = useState<number | null>(null);
+  const [documentsConfirmed, setDocumentsConfirmed] = useState(false);
+  const [isSendingNudge, setIsSendingNudge] = useState(false);
+  const submissionDocuments = patient.retrievedDocuments.filter(
+    document => document.submissionStatus !== "Reference only",
+  );
   const currentStatus = statusDetails[patient.status];
   const pendingDoctorSignature = !patient.doctorNote.signed;
+  const isPolicyEligible = patient.policyEligibility === "ELIGIBLE";
   const readyToSubmit =
-    patient.status === "ADMIN_REVIEW" && !pendingDoctorSignature;
+    patient.status === "ADMIN_REVIEW" &&
+    !pendingDoctorSignature &&
+    isPolicyEligible;
   const isSubmitting = patient.status === "SUBMITTING_TO_INSURANCE";
   const isApproved = patient.status === "INSURANCE_APPROVED";
   const isFinalRejected = patient.status === "INSURANCE_FINAL_REJECTED";
   const isAiResubmitting = patient.status === "AI_RESUBMISSION";
+  const isPackageUpdating = isSubmitting || isAiResubmitting;
+  const isAiCheckLoading = readyToSubmit && isAiCheckingSubmission;
+  const hasAiApprovedPackage =
+    readyToSubmit &&
+    isAiCheckComplete &&
+    checkedSubmissionAttempt === patient.submissionAttempts;
+  const nudgeDetail = nudgeDetails[patient.status];
 
-  useEffect(() => {
-    const firstStep = window.setTimeout(() => setActivePreparationStep(1), 2150);
-    const secondStep = window.setTimeout(() => setActivePreparationStep(2), 2800);
-    const complete = window.setTimeout(() => setIsPreparing(false), 3550);
+  const runAiSubmissionCheck = () => {
+    if (!readyToSubmit) return;
 
-    return () => {
-      window.clearTimeout(firstStep);
-      window.clearTimeout(secondStep);
-      window.clearTimeout(complete);
-    };
-  }, [patient.id]);
+    setIsAiCheckingSubmission(true);
+    setIsAiCheckComplete(false);
+    setDocumentsConfirmed(false);
+    window.setTimeout(() => {
+      setIsAiCheckingSubmission(false);
+      setIsAiCheckComplete(true);
+      setCheckedSubmissionAttempt(patient.submissionAttempts);
+    }, 1500);
+  };
 
-  useEffect(() => {
-    if (!isAiResubmitting) {
-      return;
-    }
+  const sendResponseNudge = () => {
+    if (!nudgeDetail) return;
 
-    const resetPreparation = window.setTimeout(() => setResubmissionStep(0), 0);
-    const firstStep = window.setTimeout(() => setResubmissionStep(1), 2000);
-    const secondStep = window.setTimeout(() => setResubmissionStep(2), 2800);
-
-    return () => {
-      window.clearTimeout(resetPreparation);
-      window.clearTimeout(firstStep);
-      window.clearTimeout(secondStep);
-    };
-  }, [isAiResubmitting]);
-
-  if (isPreparing || isAiResubmitting) {
-    return (
-      <AdminShell>
-        <PackagePreparation
-          patient={patient}
-          activeStep={isAiResubmitting ? resubmissionStep : activePreparationStep}
-          isResubmission={isAiResubmitting}
-        />
-      </AdminShell>
-    );
-  }
+    setIsSendingNudge(true);
+    window.setTimeout(() => {
+      sendNudge(patient.id);
+      setIsSendingNudge(false);
+    }, 1500);
+  };
+  const currentStepDetails = (
+    <Box maxWidth={300} p={0.5}>
+      <Typography
+        variant="overline"
+        color="primary"
+        fontWeight={800}
+        letterSpacing=".12em"
+      >
+        Current step
+      </Typography>
+      <Typography variant="subtitle2" fontWeight={800}>
+        {currentStatus.label}
+      </Typography>
+      <Typography variant="body2" mt={0.5}>
+        {currentStatus.detail}
+      </Typography>
+      {patient.insurerFeedback && (
+        <Box mt={1.5}>
+          <Typography variant="caption" fontWeight={800}>
+            Insurer requirements
+          </Typography>
+          <Box component="ul" my={0.5} pl={2.5}>
+            {patient.insurerFeedback.map(requirement => (
+              <li key={requirement}>{requirement}</li>
+            ))}
+          </Box>
+        </Box>
+      )}
+      {pendingDoctorSignature && (
+        <Typography variant="body2" mt={1.5}>
+          Submission remains locked until the doctor signs the admission note.
+        </Typography>
+      )}
+      {!isPolicyEligible && (
+        <Typography variant="body2" mt={1.5}>
+          Submission is blocked because the policy is not eligible for this
+          hospital.
+        </Typography>
+      )}
+    </Box>
+  );
 
   return (
     <AdminShell>
@@ -255,17 +290,24 @@ function HospitalAdminDashboardContent({
             <Typography variant="body2" color="text.secondary">
               Admissions / Guarantee letter
             </Typography>
-            <Box mt={0.5}>
+            <Stack direction="row" alignItems="center" spacing={1} mt={0.5}>
               <PatientName
                 name={patient.name}
                 gender={patient.gender}
                 variant="h4"
               />
-            </Box>
-            <Stack direction="row" alignItems="center" flexWrap="wrap" spacing={0.75} mt={1}>
-              <Typography variant="body2" color="text.secondary">
-                {patient.medicalRecordNumber} ·
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                fontWeight={700}
+              >
+                Reg. No.: {patient.medicalRecordNumber}
               </Typography>
+            </Stack>
+            <Stack direction="row" alignItems="center" flexWrap="wrap" spacing={0.75} mt={1}>
+              {/* <Typography variant="body2" color="text.secondary">
+                {patient.medicalRecordNumber} ·
+              </Typography> */}
               <Typography variant="body2" color="text.secondary">
                 <InsurerLabel insurer={patient.insurer} />
               </Typography>
@@ -288,16 +330,180 @@ function HospitalAdminDashboardContent({
           mt={4}
         >
           <Stack spacing={3}>
+        <AdmissionProgress
+          status={patient.status}
+          currentStepDetails={currentStepDetails}
+        />
+
+
             <Card variant="outlined">
               <CardContent>
-                <Typography
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  alignItems={{ sm: "center" }}
+                  justifyContent="space-between"
+                  spacing={1.5}
+                >
+                  <Box>
+                    <Typography variant="h6">Application Log</Typography>
+                    <Typography variant="body2" color="text.secondary" mt={0.5}>
+                      A complete record of this admission request.
+                    </Typography>
+                  </Box>
+                  <Stack
+                    direction="row"
+                    alignItems="center"
+                    flexWrap="wrap"
+                    spacing={1}
+                    alignSelf={{ xs: "flex-start", sm: "center" }}
+                  >
+                    {nudgeDetail && (
+                      <>
+                        <Chip
+                          label={`No ${nudgeDetail.recipient} response for ${nudgeDetail.waitingTime}`}
+                          color="warning"
+                          size="small"
+                        />
+                        <Tooltip
+                          title={`Send a reminder to the ${nudgeDetail.recipient}`}
+                        >
+                          <span>
+                            <IconButton
+                              size="small"
+                              color="warning"
+                              disabled={isSendingNudge}
+                              onClick={sendResponseNudge}
+                              aria-label={`Nudge ${nudgeDetail.recipient}`}
+                              sx={{
+                                width: 30,
+                                height: 30,
+                                bgcolor: "warning.light",
+                                color: "warning.dark",
+                                "&:hover": {
+                                  bgcolor: "warning.main",
+                                  color: "common.white",
+                                },
+                              }}
+                            >
+                              {isSendingNudge ? (
+                                <CircularProgress size={15} color="inherit" />
+                              ) : (
+                                <NotificationsActiveRoundedIcon fontSize="small" />
+                              )}
+                            </IconButton>
+                          </span>
+                        </Tooltip>
+                      </>
+                    )}
+                    <Chip
+                      label={`${patient.timeline.length} updates`}
+                      size="small"
+                      variant="outlined"
+                    />
+                  </Stack>
+                </Stack>
+                <Timeline
+                  position="right"
+                  sx={{
+                    m: 0,
+                    mt: 3,
+                    p: 0,
+                    "& .MuiTimelineItem-root:before": { flex: 0, padding: 0 },
+                    "& .MuiTimelineItem-root:last-of-type": { minHeight: 0 },
+                  }}
+                >
+                  {[...patient.timeline]
+                    .reverse()
+                    .slice(0, timelineExpanded ? undefined : 1)
+                    .map((item, index, events) => (
+                      <TimelineItem key={`${item.occurredAt}-${index}`}>
+                        <TimelineSeparator>
+                          <TimelineDot
+                            sx={{
+                              m: 0,
+                              p: 0.75,
+                              color: timelineEventStyles[item.actor].color,
+                              bgcolor:
+                                timelineEventStyles[item.actor].backgroundColor,
+                              boxShadow: "none",
+                            }}
+                          >
+                            {timelineEventStyles[item.actor].icon}
+                          </TimelineDot>
+                          {index < events.length - 1 && (
+                            <TimelineConnector
+                              sx={{ bgcolor: "divider", width: 2, my: 0.5 }}
+                            />
+                          )}
+                        </TimelineSeparator>
+                        <TimelineContent
+                          sx={{
+                            pt: 0,
+                            pb: index === events.length - 1 ? 0 : 2.5,
+                            pl: 1.75,
+                          }}
+                        >
+                          <Box
+                            border={1}
+                            borderColor="divider"
+                            borderRadius={2}
+                            p={1.5}
+                            sx={{ bgcolor: "grey.50" }}
+                          >
+                            <Stack
+                              direction={{ xs: "column", sm: "row" }}
+                              alignItems={{ sm: "center" }}
+                              justifyContent="space-between"
+                              spacing={0.75}
+                            >
+                              <Typography
+                                variant="subtitle2"
+                                color={timelineEventStyles[item.actor].color}
+                              >
+                                {item.actor}
+                              </Typography>
+                              <Chip
+                                label={item.occurredAt}
+                                size="small"
+                                variant="outlined"
+                              />
+                            </Stack>
+                            <Typography
+                              variant="body2"
+                              color="text.secondary"
+                              mt={0.75}
+                            >
+                              {item.message}
+                            </Typography>
+                          </Box>
+                        </TimelineContent>
+                      </TimelineItem>
+                    ))}
+                </Timeline>
+                {patient.timeline.length > 1 && (
+                  <Button
+                    size="small"
+                    onClick={() => setTimelineExpanded(current => !current)}
+                    sx={{ mt: 2 }}
+                  >
+                    {timelineExpanded
+                      ? "Show current update only"
+                      : `Show ${patient.timeline.length - 1} earlier updates`}
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card variant="outlined">
+              <CardContent>
+                {/* <Typography
                   variant="overline"
                   color="primary"
                   fontWeight={800}
                   letterSpacing=".12em"
                 >
                   Complete admission package
-                </Typography>
+                </Typography> */}
                 <Typography variant="h6" mt={0.5}>
                   Clinical and policy summary
                 </Typography>
@@ -336,6 +542,45 @@ function HospitalAdminDashboardContent({
                       "The AI is preparing the clinical summary."}
                   </Typography>
                 </Alert>
+
+                {patient.doctorNote.signed && (
+                  <Card variant="outlined" sx={{ mt: 3 }}>
+                    <CardContent>
+                      <Typography variant="subtitle2" color="success.main">
+                        Doctor-reviewed admission note
+                      </Typography>
+                      <Box
+                        display="grid"
+                        gridTemplateColumns={{ xs: "1fr", sm: "repeat(2, 1fr)" }}
+                        gap={2}
+                        mt={2}
+                      >
+                        <Summary
+                          label="Diagnosis"
+                          value={patient.doctorNote.diagnosis ?? "Not recorded"}
+                        />
+                        <Summary
+                          label="Estimated treatment cost"
+                          value={patient.doctorNote.estimatedCost ?? "Not recorded"}
+                        />
+                      </Box>
+                      <Box bgcolor="grey.50" borderRadius={1} p={1.5} mt={2}>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          fontWeight={700}
+                          textTransform="uppercase"
+                        >
+                          AI recommendation, reviewed by doctor
+                        </Typography>
+                        <Typography variant="body2" mt={0.5} lineHeight={1.7}>
+                          {patient.doctorNote.recommendation ??
+                            "No recommendation recorded."}
+                        </Typography>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                )}
               </CardContent>
             </Card>
 
@@ -356,7 +601,7 @@ function HospitalAdminDashboardContent({
                     <DescriptionOutlinedIcon />
                   </Box>
                   <Box>
-                    <Typography variant="h6">AI-retrieved documents</Typography>
+                    <Typography variant="h6">Documents</Typography>
                     <Typography variant="body2" color="text.secondary">
                       Evidence prepared for the pending insurer submission.
                     </Typography>
@@ -364,7 +609,7 @@ function HospitalAdminDashboardContent({
                 </Stack>
 
                 <Stack spacing={0} mt={2.5} divider={<Divider flexItem />}>
-                  {patient.retrievedDocuments.map(document => (
+                  {submissionDocuments.map(document => (
                     <Stack
                       key={document.id}
                       direction={{ xs: "column", sm: "row" }}
@@ -422,145 +667,157 @@ function HospitalAdminDashboardContent({
               </CardContent>
             </Card>
 
-            <Card variant="outlined">
+            <Card variant="outlined" sx={{ bgcolor: !hasAiApprovedPackage ? "#EFEFEF" : "transparent" }}>
               <CardContent>
-                <Stack direction="row" alignItems="center" justifyContent="space-between">
-                  <Box>
-                    <Typography variant="h6">Workflow timeline</Typography>
-                    <Typography variant="body2" color="text.secondary" mt={0.5}>
-                      A complete record of this admission request.
+                <Typography color={!hasAiApprovedPackage ? "gray" : "textPrimary"} variant="h6">Submit to insurer</Typography>
+                <Typography variant="body2" color="text.secondary" mt={0.5}>
+                  Send the hospital-confirmed package to the insurer reviewer.
+                </Typography>
+
+                <FormControlLabel
+                  sx={{ alignItems: "", mt: 2, mb: 1 }}
+                  control={
+                    <Checkbox
+                      checked={documentsConfirmed}
+                      onChange={event => setDocumentsConfirmed(event.target.checked)}
+                      disabled={!hasAiApprovedPackage}
+                    />
+                  }
+                  label={
+                    <Typography variant="body2" color={!hasAiApprovedPackage ? "gray" : "textPrimary"}>
+                      I confirm that I have reviewed the documents prepared for this submission.
                     </Typography>
-                  </Box>
-                  <Chip
-                    label={`${patient.timeline.length} updates`}
-                    size="small"
-                    variant="outlined"
-                  />
-                </Stack>
-                <Timeline
-                  position="right"
-                  sx={{
-                    m: 0,
-                    mt: 3,
-                    p: 0,
-                    "& .MuiTimelineItem-root:before": { flex: 0, padding: 0 },
-                    "& .MuiTimelineItem-root:last-of-type": { minHeight: 0 },
+                  }
+                />
+                <Typography variant="caption" color="text.secondary" display="block">
+                  * Please verify all clinical and policy documents before submitting. The insurer reviewer will record the final decision separately.
+                </Typography>
+
+                <Button
+                  fullWidth
+                  variant="contained"
+                  disabled={
+                    !readyToSubmit ||
+                    !hasAiApprovedPackage ||
+                    !documentsConfirmed ||
+                    isPackageUpdating
+                  }
+                  loading={isPackageUpdating}
+                  onClick={() => {
+                    submitToInsurer(patient.id);
+                    window.setTimeout(() => {
+                      navigate(`/insurance/review/${patient.id}`);
+                    }, 0);
                   }}
+                  sx={{ mt: 2.5 }}
                 >
-                  {patient.timeline.map((item, index) => (
-                    <TimelineItem key={`${item.occurredAt}-${index}`}>
-                      <TimelineSeparator>
-                        <TimelineDot
-                          sx={{
-                            m: 0,
-                            p: 0.75,
-                            color: timelineEventStyles[item.actor].color,
-                            bgcolor: timelineEventStyles[item.actor].backgroundColor,
-                            boxShadow: "none",
-                          }}
-                        >
-                          {timelineEventStyles[item.actor].icon}
-                        </TimelineDot>
-                        {index < patient.timeline.length - 1 && (
-                          <TimelineConnector
-                            sx={{ bgcolor: "divider", width: 2, my: 0.5 }}
-                          />
-                        )}
-                      </TimelineSeparator>
-                      <TimelineContent
-                        sx={{
-                          pt: 0,
-                          pb: index === patient.timeline.length - 1 ? 0 : 2.5,
-                          pl: 1.75,
-                        }}
-                      >
-                        <Box
-                          border={1}
-                          borderColor="divider"
-                          borderRadius={2}
-                          p={1.5}
-                          sx={{ bgcolor: "grey.50" }}
-                        >
-                          <Stack
-                            direction={{ xs: "column", sm: "row" }}
-                            alignItems={{ sm: "center" }}
-                            justifyContent="space-between"
-                            spacing={0.75}
-                          >
-                            <Typography
-                              variant="subtitle2"
-                              color={timelineEventStyles[item.actor].color}
-                            >
-                              {item.actor}
-                            </Typography>
-                            <Chip
-                              label={item.occurredAt}
-                              size="small"
-                              variant="outlined"
-                            />
-                          </Stack>
-                          <Typography
-                            variant="body2"
-                            color="text.secondary"
-                            mt={0.75}
-                          >
-                            {item.message}
-                          </Typography>
-                        </Box>
-                      </TimelineContent>
-                    </TimelineItem>
-                  ))}
-                </Timeline>
+                  {isSubmitting ? "Sending package…" : "Submit to insurer reviewer"}
+                </Button>
               </CardContent>
             </Card>
+
+            {/* {policyEligibilitySummary && (
+              <Card variant="outlined">
+                <CardContent>
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    alignItems={{ sm: "center" }}
+                    justifyContent="space-between"
+                    spacing={2}
+                  >
+                    <Box>
+                      <Typography variant="h6">
+                        Policy eligibility summary
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" mt={0.5}>
+                        {isPolicyEligible
+                          ? policyEligibilitySummary.detail
+                          : "This policy is not eligible for the selected hospital admission request."}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        display="block"
+                        mt={0.75}
+                      >
+                        Source: {policyEligibilitySummary.source} · Used for
+                        internal reference only; it is not included in the
+                        insurer submission.
+                      </Typography>
+                    </Box>
+                    <Stack
+                      direction="row"
+                      alignItems="center"
+                      spacing={1}
+                      alignSelf={{ xs: "flex-start", sm: "center" }}
+                    >
+                      <Chip label="Reference only" size="small" variant="outlined" />
+                      <Chip
+                        label={isPolicyEligible ? "Eligible" : "Not eligible"}
+                        color={isPolicyEligible ? "success" : "error"}
+                        size="small"
+                      />
+                      <Tooltip title="View policy eligibility summary">
+                        <IconButton
+                          aria-label="View policy eligibility summary"
+                          color="primary"
+                          onClick={() =>
+                            setSelectedDocument(policyEligibilitySummary)
+                          }
+                        >
+                          <VisibilityOutlinedIcon />
+                        </IconButton>
+                      </Tooltip>
+                    </Stack>
+                  </Stack>
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    alignItems={{ sm: "center" }}
+                    spacing={1}
+                    borderTop={1}
+                    borderColor="divider"
+                    mt={2}
+                    pt={2}
+                  >
+                    <Typography variant="caption" color="text.secondary" mr="auto">
+                      Mock eligibility result
+                    </Typography>
+                    <Button
+                      size="small"
+                      variant={isPolicyEligible ? "contained" : "outlined"}
+                      color="success"
+                      onClick={() =>
+                        setPolicyEligibility(patient.id, "ELIGIBLE")
+                      }
+                    >
+                      Mark eligible
+                    </Button>
+                    <Button
+                      size="small"
+                      variant={!isPolicyEligible ? "contained" : "outlined"}
+                      color="error"
+                      onClick={() =>
+                        setPolicyEligibility(patient.id, "NOT_ELIGIBLE")
+                      }
+                    >
+                      Mark not eligible
+                    </Button>
+                  </Stack>
+                </CardContent>
+              </Card>
+            )} */}
+
           </Stack>
 
           <Stack spacing={3}>
-            <Card variant="outlined">
-              <CardContent>
-                <Typography
-                  variant="overline"
-                  color="primary"
-                  fontWeight={800}
-                  letterSpacing=".12em"
-                >
-                  Current step
-                </Typography>
-                <Typography variant="h6" mt={0.5}>
-                  {currentStatus.label}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" mt={1}>
-                  {currentStatus.detail}
-                </Typography>
-
-                {patient.insurerFeedback && (
-                  <Alert severity="error" sx={{ mt: 2 }}>
-                    <Typography variant="subtitle2">
-                      Insurer requirements
-                    </Typography>
-                    <Box component="ul" my={1} pl={2.5}>
-                      {patient.insurerFeedback.map((requirement) => (
-                        <li key={requirement}>{requirement}</li>
-                      ))}
-                    </Box>
-                  </Alert>
-                )}
-
-                {pendingDoctorSignature && (
-                  <Alert severity="warning" sx={{ mt: 2 }}>
-                    <Typography variant="subtitle2">
-                      Submission locked pending doctor signature
-                    </Typography>
-                    <Typography variant="body2" mt={0.5}>
-                      AI has gathered the package documents, but the clinical note must be electronically signed before this request can be sent to the insurer.
-                    </Typography>
-                  </Alert>
-                )}
-              </CardContent>
-            </Card>
-
             <Card
-              sx={{ bgcolor: "primary.main", color: "primary.contrastText" }}
+              sx={{
+                position: "sticky",
+                top: 80,
+                zIndex: 1,
+                bgcolor: "primary.main",
+                color: "primary.contrastText",
+              }}
             >
               <CardContent>
                 <Typography
@@ -569,9 +826,60 @@ function HospitalAdminDashboardContent({
                   fontWeight={800}
                   letterSpacing=".12em"
                 >
-                  Mock insurer response
+                  AI submission checker
                 </Typography>
 
+                <Typography variant="h6" mt={0.5}>
+                  Pre-submit review
+                </Typography>
+
+                {isAiCheckLoading ? (
+                  <Stack alignItems="center" spacing={1.5} py={3} aria-live="polite">
+                    <CircularProgress color="inherit" size={28} />
+                    <Typography variant="body2" textAlign="center">
+                      Checking document completeness, policy eligibility, and the signed clinical note.
+                    </Typography>
+                  </Stack>
+                ) : hasAiApprovedPackage ? (
+                  <>
+                    <Typography variant="body2" mt={1} sx={{ color: "primary.light" }}>
+                      AI check complete. This package is ready for hospital confirmation.
+                    </Typography>
+                    <Stack spacing={1} mt={2}>
+                      <AiCheckItem label="Patient identity matches the admission record" />
+                      <AiCheckItem label="Policy is active and eligible for this hospital" />
+                      <AiCheckItem label="Doctor note and supporting evidence are ready" />
+                    </Stack>
+                  </>
+                ) : (
+                  <Typography variant="body2" mt={1.5} sx={{ color: "common.lightgray" }}>
+                    {pendingDoctorSignature
+                      ? "Waiting for the doctor to sign the admission note before checking the package."
+                      : !isPolicyEligible
+                        ? "The policy is not eligible for this hospital admission."
+                        : isApproved
+                          ? "The insurer has approved this admission."
+                          : isFinalRejected
+                            ? "The insurer issued a final decline for this admission."
+                            : isSubmitting
+                              ? "The package is now with the insurer reviewer."
+                              : "The AI checker will start once the package is ready."}
+                  </Typography>
+                )}
+
+                {readyToSubmit && !isAiCheckLoading && (
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    // color="inherit"
+                    onClick={runAiSubmissionCheck}
+                    sx={{ mt: 2.5, borderColor: "primary.light" }}
+                  >
+                    {hasAiApprovedPackage ? "Run AI check again" : "Run AI check"}
+                  </Button>
+                )}
+
+                {/*
                 {readyToSubmit && (
                   <OutcomeSelector
                     outcome={patient.nextInsurerOutcome}
@@ -606,32 +914,91 @@ function HospitalAdminDashboardContent({
                       <Typography
                         variant="body2"
                         mt={2}
-                        sx={{ color: "primary.light" }}
+                        sx={{ color: "white" }}
                       >
                         The AI-prepared documents are ready to review. Submission will unlock after the doctor signs the note.
+                      </Typography>
+                    )}
+                    {!isPolicyEligible && (
+                      <Typography
+                        variant="body2"
+                        mt={2}
+                        sx={{ color: "primary.light" }}
+                      >
+                        Submission is blocked because this policy is not
+                        eligible for the selected hospital.
                       </Typography>
                     )}
                     <Button
                       fullWidth
                       variant="contained"
                       color="inherit"
-                      disabled={!readyToSubmit || isSubmitting}
+                      disabled={!readyToSubmit || isPackageUpdating}
+                      loading={isPackageUpdating}
+                      loadingIndicator={
+                        <Box
+                          position="relative"
+                          width={22}
+                          height={22}
+                          sx={{ display: "inline-grid", placeItems: "center" }}
+                        >
+                          <CircularProgress
+                            size={22}
+                            thickness={4}
+                            sx={{
+                              position: "absolute",
+                              color: "primary.main",
+                              animation: "submitLoaderSpin 900ms linear infinite",
+                              "@keyframes submitLoaderSpin": {
+                                to: { transform: "rotate(360deg)" },
+                              },
+                            }}
+                          />
+                          <AutoAwesomeRoundedIcon
+                            sx={{
+                              position: "relative",
+                              zIndex: 1,
+                              fontSize: 13,
+                              color: "primary.main",
+                              animation: "submitLoaderSparkle 1.1s ease-in-out infinite",
+                              "@keyframes submitLoaderSparkle": {
+                                "0%, 100%": { opacity: 0.45, transform: "scale(0.78)" },
+                                "50%": { opacity: 1, transform: "scale(1.12)" },
+                              },
+                            }}
+                          />
+                        </Box>
+                      }
                       onClick={() => submitToInsurer(patient.id)}
                       sx={{
                         mt: 3,
                         bgcolor: "common.white",
                         color: "primary.main",
                         "&:hover": { bgcolor: "grey.100" },
+                        ...(isPackageUpdating && {
+                          background:
+                            "linear-gradient(110deg, #ffffff 0%, #e3f2fd 42%, #ffffff 78%)",
+                          backgroundSize: "220% 100%",
+                          animation: "submitButtonShimmer 1.8s linear infinite",
+                          "@keyframes submitButtonShimmer": {
+                            to: { backgroundPosition: "-220% 0" },
+                          },
+                        }),
                       }}
                     >
                       {pendingDoctorSignature
                         ? "Awaiting doctor signature"
-                        : isSubmitting
+                        : !isPolicyEligible
+                          ? "Policy not eligible"
+                        : isAiResubmitting
+                          ? "Updating package…"
+                          : isSubmitting
                           ? "Sending package…"
                           : "Submit to insurance"}
                     </Button>
                   </>
                 )}
+                */}
               </CardContent>
             </Card>
           </Stack>
@@ -644,162 +1011,6 @@ function HospitalAdminDashboardContent({
         />
       </Box>
     </AdminShell>
-  );
-}
-
-function PackagePreparation({
-  patient,
-  activeStep,
-  isResubmission,
-}: {
-  patient: AdmissionRecord;
-  activeStep: number;
-  isResubmission: boolean;
-}) {
-  const progress = ((activeStep + 1) / preparationSteps.length) * 100;
-  const taskDescription = isResubmission
-    ? "Reconciling insurer feedback with verified hospital records."
-    : "Retrieving relevant information for insurance approval.";
-
-  return (
-    <Box
-      component="main"
-      display="grid"
-      minHeight="calc(100vh - 64px)"
-      px={{ xs: 2.5, lg: 5 }}
-      py={4}
-      sx={{ placeItems: "center" }}
-    >
-      <Card
-        className="ai-preparation-card"
-        sx={{
-          width: "100%",
-          maxWidth: 680,
-          overflow: "hidden",
-          boxShadow: 8,
-        }}
-      >
-        <Box
-          sx={{
-            height: 6,
-            background: "linear-gradient(90deg, #003d9b, #36a9e1, #00a887)",
-            backgroundSize: "200% 100%",
-            animation: "preparationGlow 1.8s ease-in-out infinite",
-            "@keyframes preparationGlow": {
-              "0%": { backgroundPosition: "0% 50%" },
-              "100%": { backgroundPosition: "200% 50%" },
-            },
-          }}
-        />
-        <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
-          <Stack alignItems="center" textAlign="center" aria-live="polite" role="status">
-            <Box
-              className="ai-loader"
-              display="grid"
-              width={96}
-              height={96}
-              color="common.white"
-              sx={{ placeItems: "center" }}
-            >
-              <Box className="ai-loader-ring ai-loader-ring-one" />
-              <Box className="ai-loader-ring ai-loader-ring-two" />
-              <Box className="ai-loader-particle ai-loader-particle-one" />
-              <Box className="ai-loader-particle ai-loader-particle-two" />
-              <Box className="ai-loader-core">
-                <AutoAwesomeRoundedIcon fontSize="large" />
-              </Box>
-            </Box>
-            <Typography variant="overline" color="primary" fontWeight={800} letterSpacing=".12em" mt={2}>
-              AI admission assistant
-            </Typography>
-            <Stack
-              direction="row"
-              alignItems="center"
-              justifyContent="center"
-              flexWrap="wrap"
-              spacing={0.75}
-              mt={0.5}
-            >
-              {isResubmission ? (
-                <Typography variant="h5" fontWeight={700}>
-                  Rebuilding the insurer submission
-                </Typography>
-              ) : (
-                <>
-                  <Typography variant="h5" fontWeight={700}>
-                    Preparing
-                  </Typography>
-                  <PatientName
-                    name={patient.name}
-                    gender={patient.gender}
-                    variant="h5"
-                  />
-                  <Typography variant="h5" fontWeight={700}>
-                    &apos;s GL package
-                  </Typography>
-                </>
-              )}
-            </Stack>
-            <Typography variant="body2" color="text.secondary" mt={1}>
-              {taskDescription}
-            </Typography>
-          </Stack>
-
-          <Box className="ai-progress-track" mt={4} height={8} borderRadius={4} overflow="hidden" bgcolor="grey.100">
-            <Box
-              className="ai-progress-value"
-              height="100%"
-              width={`${progress}%`}
-              bgcolor="primary.main"
-              borderRadius={4}
-              sx={{ transition: "width 500ms ease" }}
-            />
-          </Box>
-
-          <Stack spacing={1.5} mt={3}>
-            {preparationSteps.map((step, index) => {
-              const isComplete = index < activeStep;
-              const isActive = index === activeStep;
-
-              return (
-                <Stack
-                  key={step.title}
-                  direction="row"
-                  alignItems="center"
-                  spacing={2}
-                  p={1.5}
-                  borderRadius={2}
-                  bgcolor={isActive ? "rgba(0, 61, 155, 0.08)" : "transparent"}
-                  className={isActive ? "ai-preparation-step-active" : undefined}
-                  sx={{
-                    opacity: index <= activeStep ? 1 : 0.45,
-                    transition: "opacity 300ms ease, background-color 300ms ease",
-                  }}
-                >
-                  <Box
-                    color={
-                      isComplete
-                        ? "success.main"
-                        : isActive
-                          ? "primary.main"
-                          : "text.disabled"
-                    }
-                  >
-                    {isComplete ? <CheckCircleRoundedIcon /> : step.icon}
-                  </Box>
-                  <Box textAlign="left">
-                    <Typography variant="subtitle2">{step.title}</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {step.detail}
-                    </Typography>
-                  </Box>
-                </Stack>
-              );
-            })}
-          </Stack>
-        </CardContent>
-      </Card>
-    </Box>
   );
 }
 
@@ -841,22 +1052,51 @@ function DocumentPreview({
           </Box>
           <Chip
             label={document.submissionStatus}
-            color={document.submissionStatus === "Ready to submit" ? "success" : "warning"}
+            color={
+              document.submissionStatus === "Ready to submit"
+                ? "success"
+                : document.submissionStatus === "Requires review"
+                  ? "warning"
+                  : "default"
+            }
             size="small"
           />
         </Stack>
       </DialogTitle>
 
       <DialogContent dividers sx={{ bgcolor: "grey.100", p: { xs: 2, sm: 4 } }}>
-        {document.id === "doctor-note" ? (
+        {document.id === "full-policy-document" ? (
+          <Box
+            maxWidth={760}
+            mx="auto"
+            overflow="hidden"
+            border={1}
+            borderColor="grey.300"
+            borderRadius={1}
+            bgcolor="common.white"
+            boxShadow={2}
+          >
+            <Box
+              component="iframe"
+              src={aiaPolicyDocument}
+              title="Mock AIA policy document"
+              width="100%"
+              height={700}
+              border={0}
+              display="block"
+            />
+          </Box>
+        ) : document.id === "doctor-note" ? (
           <Box maxWidth={760} mx="auto">
             <AdmissionNoteDocument
               admission={patient}
+              showClinicalContext={false}
               signatureContent={
                 patient.doctorNote.signed ? (
                   <SignedAdmissionSignature
                     signatureName={patient.doctorNote.signedBy ?? "Reviewing doctor"}
                     signedAt={patient.doctorNote.signedAt}
+                    signatureImage={patient.doctorNote.signatureImage}
                   />
                 ) : (
                   <Alert severity="warning" sx={{ mt: 2 }}>
@@ -975,7 +1215,33 @@ function getDocumentSections(
       return [
         { heading: "Insurer", content: patient.insurer },
         { heading: "Plan and member ID", content: `${patient.policyPlan} · ${patient.memberId}` },
-        { heading: "Eligibility result", content: "Active coverage and panel-hospital eligibility have been confirmed." },
+        {
+          heading: "Eligibility result",
+          content:
+            patient.policyEligibility === "ELIGIBLE"
+              ? "Eligible: active coverage and panel-hospital eligibility have been confirmed."
+              : "Not eligible: this policy cannot be used for the selected hospital admission request.",
+        },
+      ];
+    case "full-policy-document":
+      return [
+        {
+          heading: "Document type",
+          content: "Mock policy schedule and member certificate",
+        },
+        { heading: "Insurer", content: patient.insurer },
+        { heading: "Member ID", content: patient.memberId },
+        { heading: "Policy plan", content: patient.policyPlan },
+        {
+          heading: "Coverage",
+          content:
+            "Inpatient admission and medically necessary treatment, subject to policy terms and insurer approval.",
+        },
+        {
+          heading: "Eligibility status",
+          content:
+            "Active coverage and panel-hospital eligibility confirmed for this mock submission.",
+        },
       ];
     case "doctor-note":
       return [
@@ -990,60 +1256,266 @@ function getDocumentSections(
   }
 }
 
-function OutcomeSelector({
-  outcome,
-  onChange,
+type ProgressState = "complete" | "current" | "pending" | "failed";
+
+type ProgressStep = {
+  label: string;
+  state: ProgressState;
+  tooltip: string;
+};
+
+function AdmissionProgress({
+  status,
+  currentStepDetails,
 }: {
-  outcome: InsurerOutcome;
-  onChange: (outcome: InsurerOutcome) => void;
+  status: AdmissionStatus;
+  currentStepDetails: ReactNode;
+}) {
+  const steps = getProgressSteps(status);
+  const currentStep = getCurrentProgressStep(status);
+
+  return (
+    <Box
+      mt={2.5}
+      pt={2}
+      borderTop={1}
+      borderColor="divider"
+      sx={{ overflowX: "auto" }}
+    >
+      <Stack direction="row" alignItems="flex-start" minWidth={500}>
+        {steps.map((step, index) => {
+          const colors = progressColors[step.state];
+
+          return (
+            <Stack
+              key={step.label}
+              direction="row"
+              alignItems="flex-start"
+              flex={index < steps.length - 1 ? 1 : "none"}
+            >
+              <Stack alignItems="center" spacing={0.75} width={100}>
+                <Tooltip
+                  title={
+                    index === currentStep ? (
+                      currentStepDetails
+                    ) : (
+                      <TimelineStepTooltip
+                        title={step.label}
+                        detail={step.tooltip}
+                      />
+                    )
+                  }
+                  arrow
+                  placement="top"
+                  slotProps={{
+                    tooltip: {
+                      sx: {
+                        maxWidth: 340,
+                        p: 2,
+                        bgcolor: "background.paper",
+                        color: "text.primary",
+                        border: 1,
+                        borderColor: "divider",
+                        borderRadius: 2,
+                        boxShadow: 4,
+                      },
+                    },
+                    arrow: { sx: { color: "background.paper" } },
+                  }}
+                >
+                  <Box
+                    display="grid"
+                    width={28}
+                    height={28}
+                    borderRadius="50%"
+                    sx={{
+                      placeItems: "center",
+                      color: colors.color,
+                      bgcolor: colors.backgroundColor,
+                      border: "2px solid",
+                      borderColor: colors.borderColor,
+                      cursor: index === currentStep ? "help" : "default",
+                    }}
+                  >
+                    <ProgressIcon state={step.state} index={index} />
+                  </Box>
+                </Tooltip>
+                <Typography
+                  variant="caption"
+                  color={colors.color}
+                  fontWeight={700}
+                  whiteSpace="nowrap"
+                >
+                  {step.label}
+                </Typography>
+                {/* {index === 2 && showSubmitAction && (
+                  <Button
+                    size="small"
+                    variant="text"
+                    onClick={onSubmit}
+                    loading={isSubmitting}
+                    sx={{ minWidth: 0, px: 0.5, py: 0, fontSize: "0.7rem" }}
+                  >
+                    Submit
+                  </Button>
+                )} */}
+              </Stack>
+              {index < steps.length - 1 && (
+                <Box
+                  flex={1}
+                  height={2}
+                  mt={1.625}
+                  bgcolor={
+                    step.state === "complete" ? "success.main" : "divider"
+                  }
+                />
+              )}
+            </Stack>
+          );
+        })}
+      </Stack>
+    </Box>
+  );
+}
+
+const progressColors: Record<
+  ProgressState,
+  { color: string; backgroundColor: string; borderColor: string }
+> = {
+  complete: {
+    color: "#1b5e20",
+    backgroundColor: "#e8f5e9",
+    borderColor: "#66bb6a",
+  },
+  current: {
+    color: "#8a5a00",
+    backgroundColor: "#fff8e1",
+    borderColor: "#fbc02d",
+  },
+  pending: {
+    color: "#6b7280",
+    backgroundColor: "#f8fafc",
+    borderColor: "#cbd5e1",
+  },
+  failed: {
+    color: "#b71c1c",
+    backgroundColor: "#ffebee",
+    borderColor: "#ef5350",
+  },
+};
+
+function ProgressIcon({ state, index }: { state: ProgressState; index: number }) {
+  if (state === "failed") {
+    return <CancelRoundedIcon fontSize="small" />;
+  }
+
+  if (index === 3 && state === "complete") {
+    return <TaskAltRoundedIcon fontSize="small" />;
+  }
+
+  switch (index) {
+    case 0:
+      return <PersonOutlineRoundedIcon fontSize="small" />;
+    case 1:
+      return <DescriptionOutlinedIcon fontSize="small" />;
+    case 2:
+      return <SendRoundedIcon fontSize="small" />;
+    default:
+      return <FactCheckOutlinedIcon fontSize="small" />;
+  }
+}
+
+function TimelineStepTooltip({
+  title,
+  detail,
+}: {
+  title: string;
+  detail: string;
 }) {
   return (
-    <FormControl component="fieldset" sx={{ mt: 2, width: "100%" }}>
-      <Typography variant="body2" sx={{ color: "white" }}>
-        Choose the insurer response for this submission:
+    <Box maxWidth={300}>
+      <Typography variant="subtitle2" fontWeight={800}>
+        {title}
       </Typography>
-      <RadioGroup
-        value={outcome}
-        onChange={(event) => onChange(event.target.value as InsurerOutcome)}
-      >
-        <FormControlLabel
-          value="APPROVE"
-          control={
-            <Radio
-              sx={{
-                color: "primary.light",
-                "&.Mui-checked": { color: "common.white" },
-              }}
-            />
-          }
-          label="Approve claim"
-        />
-        <FormControlLabel
-          value="REJECT"
-          control={
-            <Radio
-              sx={{
-                color: "primary.light",
-                "&.Mui-checked": { color: "common.white" },
-              }}
-            />
-          }
-          label="Reject, then resubmit"
-        />
-        <FormControlLabel
-          value="FINAL_REJECT"
-          control={
-            <Radio
-              sx={{
-                color: "primary.light",
-                "&.Mui-checked": { color: "common.white" },
-              }}
-            />
-          }
-          label="Final decline"
-        />
-      </RadioGroup>
-    </FormControl>
+      <Typography variant="body2" color="text.secondary" mt={0.5}>
+        {detail}
+      </Typography>
+    </Box>
+  );
+}
+
+function getProgressSteps(status: AdmissionStatus): ProgressStep[] {
+  const currentStep = getCurrentProgressStep(status);
+  const isFinalRejection = status === "INSURANCE_FINAL_REJECTED";
+  const isFinalApproval = status === "INSURANCE_APPROVED";
+  const baseSteps = [
+    {
+      label: "Onboard",
+      tooltip: "Patient onboarded and consented to share admission details with the selected hospital.",
+    },
+    {
+      label: "Documents",
+      tooltip:
+        "Identity, policy, and supporting admission records are being gathered and checked.",
+    },
+    {
+      label: "Pending submit",
+      tooltip:
+        "The package is awaiting final hospital review before submission to the insurer.",
+    },
+    {
+      label: isFinalApproval
+        ? "Approved"
+        : isFinalRejection
+          ? "Rejected"
+          : "Final decision",
+      tooltip: isFinalApproval
+        ? "The insurer approved the admission request."
+        : isFinalRejection
+          ? "The insurer issued a final decline for the admission request."
+          : "The insurer's final decision is pending.",
+    },
+  ];
+
+  return baseSteps.map((step, index) => ({
+    ...step,
+    state:
+      isFinalRejection && index === 3
+        ? "failed"
+        : index < currentStep
+          ? "complete"
+          : index === currentStep
+            ? isFinalApproval
+              ? "complete"
+              : "current"
+            : "pending",
+  }));
+}
+
+function getCurrentProgressStep(status: AdmissionStatus) {
+  if (
+    status === "INSURANCE_APPROVED" ||
+    status === "INSURANCE_FINAL_REJECTED"
+  ) {
+    return 3;
+  }
+
+  if (
+    status === "ADMIN_REVIEW" ||
+    status === "SUBMITTING_TO_INSURANCE"
+  ) {
+    return 2;
+  }
+
+  return 1;
+}
+
+function AiCheckItem({ label }: { label: string }) {
+  return (
+    <Stack direction="row" alignItems="flex-start" spacing={1}>
+      <TaskAltRoundedIcon color="success" fontSize="small" />
+      <Typography variant="body2">{label}</Typography>
+    </Stack>
   );
 }
 

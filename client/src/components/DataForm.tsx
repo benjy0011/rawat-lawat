@@ -2,9 +2,11 @@ import {
   Box,
   Card,
   CardContent,
+  CircularProgress,
   FormControl,
   FormHelperText,
   Grid,
+  InputAdornment,
   MenuItem,
   Radio,
   RadioGroup,
@@ -26,6 +28,7 @@ export function DataForm({
   values,
   setValues,
   show,
+  isLoading = false,
   selectOptions = {},
 }: {
   title: string;
@@ -34,20 +37,30 @@ export function DataForm({
   values: FormValues;
   setValues: (value: FormValues) => void;
   show: boolean;
+  isLoading?: boolean;
   selectOptions?: Partial<Record<string, readonly string[]>>;
 }) {
   if (!show) return null;
   return (
-    <Card className="motion-card motion-enter motion-enter-delay-2" variant="outlined" sx={{ mt: 3 }}>
+    <Card
+      className="motion-card motion-enter motion-enter-delay-2"
+      variant="outlined"
+      sx={{ mt: 3 }}
+    >
       <CardContent>
         <Box display="flex" gap={1.5} alignItems="flex-start">
           <EditOutlinedIcon color="primary" />
           <Box>
-            <Typography fontWeight={700}>{title}</Typography>
+            <Typography fontWeight={700}>
+              {isLoading ? "Reading document details" : title}
+            </Typography>
             <Typography variant="body2" color="text.secondary">
-              {description}
+              {isLoading
+                ? "We’re reading the details from your document."
+                : description}
             </Typography>
           </Box>
+          {isLoading && <CircularProgress size={22} sx={{ ml: "auto" }} />}
         </Box>
         <Grid container spacing={2} mt={1}>
           {fields.map(([label, key]) => {
@@ -58,6 +71,7 @@ export function DataForm({
                 <Grid key={key} size={{ xs: 12, sm: 6 }}>
                   <GenderPicker
                     value={values.gender}
+                    disabled={isLoading}
                     onChange={(gender) =>
                       setValues({ ...values, gender })
                     }
@@ -78,6 +92,18 @@ export function DataForm({
                   select={Boolean(options)}
                   label={label}
                   value={values[key]}
+                  disabled={isLoading}
+                  InputProps={
+                    isLoading
+                      ? {
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <CircularProgress size={18} />
+                            </InputAdornment>
+                          ),
+                        }
+                      : undefined
+                  }
                   helperText={
                     key === "provider"
                         ? "Choose your medical insurance provider."
@@ -120,9 +146,11 @@ export function DataForm({
 
 function GenderPicker({
   value,
+  disabled,
   onChange,
 }: {
   value: string;
+  disabled: boolean;
   onChange: (gender: "male" | "female") => void;
 }) {
   const options = [
@@ -143,7 +171,7 @@ function GenderPicker({
   ];
 
   return (
-    <FormControl fullWidth>
+    <FormControl fullWidth disabled={disabled}>
       <Typography variant="body2" fontWeight={700} mb={1}>
         Gender
       </Typography>
@@ -166,9 +194,10 @@ function GenderPicker({
                 border={1}
                 borderRadius={1.5}
                 sx={{
-                  cursor: "pointer",
+                  cursor: disabled ? "default" : "pointer",
                   borderColor: isSelected ? option.color : "divider",
                   bgcolor: isSelected ? option.backgroundColor : "background.paper",
+                  opacity: disabled ? 0.65 : 1,
                   transition: "border-color 180ms ease, background-color 180ms ease, transform 180ms ease",
                   "&:hover": {
                     borderColor: option.color,
@@ -182,6 +211,7 @@ function GenderPicker({
               >
                 <Radio
                   value={option.value}
+                  disabled={disabled}
                   sx={{ position: "absolute", opacity: 0, pointerEvents: "none" }}
                 />
                 <Stack direction="row" alignItems="center" justifyContent="center" spacing={0.75}>

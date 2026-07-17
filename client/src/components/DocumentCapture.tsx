@@ -29,11 +29,13 @@ export function DocumentCapture({
   image,
   setImage,
   onRead,
+  onReadingChange,
 }: {
   kind: DocumentKind;
   image: string;
   setImage: (value: string) => void;
   onRead: (result: Identity | Policy) => void;
+  onReadingChange?: (isReading: boolean) => void;
 }) {
   const [status, setStatus] = useState<ScanState>(image ? "ready" : "idle");
   const [message, setMessage] = useState(
@@ -61,6 +63,7 @@ export function DocumentCapture({
   const processFile = async (file: File) => {
     setImage(URL.createObjectURL(file));
     setStatus("reading");
+    onReadingChange?.(true);
     setMessage("Reading document securely on this device…");
     try {
       const { result } = await readDocument(file, kind, setMessage);
@@ -72,6 +75,8 @@ export function DocumentCapture({
       setMessage(
         "We couldn’t read that image. You can enter the details manually below.",
       );
+    } finally {
+      onReadingChange?.(false);
     }
   };
   const startCamera = async () => {
@@ -119,6 +124,7 @@ export function DocumentCapture({
   const reset = () => {
     stopCamera();
     setImage("");
+    onReadingChange?.(false);
     setStatus("idle");
     setMessage("Ready to scan");
   };

@@ -218,7 +218,7 @@ function PolicyRecord({ policy }: { policy: VaultPolicy }) {
               target="_blank"
               rel="noreferrer"
               size="small"
-              variant="outlined"
+              variant="text"
               startIcon={<VisibilityOutlinedIcon />}
             >
               View

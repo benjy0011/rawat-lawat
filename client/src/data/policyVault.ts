@@ -18,6 +18,8 @@ export type VaultPolicy = {
   plan: string;
   status: VaultPolicyStatus;
   expiresOn: string;
+  // Annual inpatient sum insured (MYR) used by the eligibility check.
+  sumInsured: number;
   logo: string;
   documentUrl: string;
 };
@@ -32,6 +34,7 @@ export const vaultPolicies: VaultPolicy[] = [
     plan: "A-Life Med Regular",
     status: "Active",
     expiresOn: "31 Dec 2026",
+    sumInsured: 150000,
     logo: aiaLogo,
     documentUrl: aiaPolicyDocument,
   },
@@ -44,6 +47,7 @@ export const vaultPolicies: VaultPolicy[] = [
     plan: "A-Plus Health 2",
     status: "Expiring soon",
     expiresOn: "30 Aug 2026",
+    sumInsured: 1000000,
     logo: aiaLogo,
     documentUrl: aiaPolicyDocument,
   },
@@ -56,6 +60,7 @@ export const vaultPolicies: VaultPolicy[] = [
     plan: "SmartProtect Essential",
     status: "Active",
     expiresOn: "14 Mar 2027",
+    sumInsured: 100000,
     logo: greatEasternLogo,
     documentUrl: greatEasternPolicyDocument,
   },
@@ -68,6 +73,7 @@ export const vaultPolicies: VaultPolicy[] = [
     plan: "SmartMedic Premier",
     status: "Active",
     expiresOn: "09 Nov 2026",
+    sumInsured: 300000,
     logo: greatEasternLogo,
     documentUrl: greatEasternPolicyDocument,
   },
@@ -80,6 +86,7 @@ export const vaultPolicies: VaultPolicy[] = [
     plan: "PRUHealth Med",
     status: "Active",
     expiresOn: "22 Jan 2027",
+    sumInsured: 200000,
     logo: prudentialLogo,
     documentUrl: prudentialPolicyDocument,
   },
@@ -92,6 +99,7 @@ export const vaultPolicies: VaultPolicy[] = [
     plan: "PRUMillion Med 2.0",
     status: "Inactive",
     expiresOn: "02 May 2026",
+    sumInsured: 1000000,
     logo: prudentialLogo,
     documentUrl: prudentialPolicyDocument,
   },
@@ -104,6 +112,7 @@ export const vaultPolicies: VaultPolicy[] = [
     plan: "MediSafe Infinite+",
     status: "Active",
     expiresOn: "17 Sep 2026",
+    sumInsured: 500000,
     logo: allianzLogo,
     documentUrl: allianzPolicyDocument,
   },
@@ -116,6 +125,7 @@ export const vaultPolicies: VaultPolicy[] = [
     plan: "HealthAssured Gold",
     status: "Active",
     expiresOn: "12 Feb 2027",
+    sumInsured: 250000,
     logo: allianzLogo,
     documentUrl: allianzPolicyDocument,
   },

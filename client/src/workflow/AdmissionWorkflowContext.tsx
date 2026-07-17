@@ -11,6 +11,7 @@ import {
   upsertAdmission,
   upsertProfile,
 } from "../lib/workflowRepository";
+import { checksWithStatus, evaluatePolicy } from "./evaluatePolicy";
 
 export type AdmissionStatus =
   | "PENDING_ADMIN_APPROVAL"
@@ -44,7 +45,8 @@ export type RetrievedDocument = {
 export type PolicyCheck = {
   id: "active" | "covered" | "exclusions" | "sum-insured";
   question: string;
-  status: "pending" | "checking" | "passed";
+  status: "pending" | "checking" | "passed" | "failed";
+  detail?: string;
 };
 
 export type AdmissionRecord = PendingPatient & {
@@ -156,7 +158,7 @@ function makeSeedAdmission(
 ): AdmissionRecord {
   const awaitingDoctorReview = index === 1;
 
-  return {
+  const base: AdmissionRecord = {
     ...patient,
     hospitalName: "Central Hospital HQ",
     profile: {
@@ -185,7 +187,7 @@ function makeSeedAdmission(
     nextInsurerOutcome: index === 0 ? "REJECT" : "APPROVE",
     policyEligibility: "ELIGIBLE",
     retrievedDocuments: createRetrievedDocuments(!awaitingDoctorReview),
-    policyChecks: policyChecks(policyCheckQuestions.length),
+    policyChecks: [],
     timeline: [
       event("Patient", "Admission details submitted"),
       event("AI Assistant", "Admission package and doctor note prepared"),
@@ -197,6 +199,11 @@ function makeSeedAdmission(
         : []),
     ],
   };
+
+  // Run the same rule-based check the workflow uses, so seeds reflect real
+  // eligibility (e.g. an elective procedure fails the waiting-period rule).
+  const { checks, eligibility } = evaluatePolicy(base);
+  return { ...base, policyChecks: checks, policyEligibility: eligibility };
 }
 
 function createRetrievedDocuments(doctorNoteSigned: boolean): RetrievedDocument[] {
@@ -384,7 +391,7 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
   const approveAdmission = (id: string) => {
     updateAdmission(id, record =>
       addEvent(
-        { ...record, status: "AI_PREPARING", policyChecks: policyChecks(0) },
+        { ...record, status: "AI_PREPARING", policyChecks: checksWithStatus("checking") },
         {
           actor: "Administrator",
           message: "Hospital approved the admission request",
@@ -392,22 +399,18 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
       ),
     );
 
-    [1, 2, 3].forEach(index => {
-      window.setTimeout(() => {
-        updateAdmission(id, record => ({
-          ...record,
-          policyChecks: policyChecks(index),
-        }));
-      }, index * 500);
-    });
-
     window.setTimeout(() => {
-      updateAdmission(id, record =>
-        addEvent(
+      updateAdmission(id, record => {
+        // Run the rule-based eligibility check against the Policy Vault. The
+        // sum-insured check stays pending until the doctor enters an estimate.
+        const { checks, eligibility } = evaluatePolicy(record);
+
+        return addEvent(
           {
             ...record,
             status: "DOCTOR_REVIEW",
-            policyChecks: policyChecks(policyCheckQuestions.length),
+            policyChecks: checks,
+            policyEligibility: eligibility,
             doctorNote: {
               signed: false,
               summary:
@@ -417,10 +420,10 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
           {
             actor: "AI Assistant",
             message:
-              "Prepared admission data, supporting documents, and doctor note; awaiting doctor signature",
+              "Ran policy eligibility checks and prepared the admission package; awaiting doctor signature",
           },
-        ),
-      );
+        );
+      });
     }, 2000);
   };
 
@@ -432,32 +435,38 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
     recommendation: string,
     signatureImage: string,
   ) => {
-    updateAdmission(id, record =>
-      addEvent(
-        {
-          ...record,
-          status: "ADMIN_REVIEW",
-          doctorNote: {
-            ...record.doctorNote,
-            diagnosis,
-            estimatedCost,
-            recommendation,
-            signed: true,
-            signedBy: signatureName,
-            signedAt: new Date().toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
-            signatureImage,
-          },
-          retrievedDocuments: createRetrievedDocuments(true),
+    updateAdmission(id, record => {
+      const withNote: AdmissionRecord = {
+        ...record,
+        status: "ADMIN_REVIEW",
+        doctorNote: {
+          ...record.doctorNote,
+          diagnosis,
+          estimatedCost,
+          recommendation,
+          signed: true,
+          signedBy: signatureName,
+          signedAt: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          signatureImage,
         },
+        retrievedDocuments: createRetrievedDocuments(true),
+      };
+
+      // Re-run eligibility now that the diagnosis and estimated cost exist, so
+      // the sum-insured check finalizes.
+      const { checks, eligibility } = evaluatePolicy(withNote);
+
+      return addEvent(
+        { ...withNote, policyChecks: checks, policyEligibility: eligibility },
         {
           actor: "Doctor",
           message: "Doctor note reviewed and electronically signed",
         },
-      ),
-    );
+      );
+    });
   };
 
   const beginResubmission = (id: string) => {

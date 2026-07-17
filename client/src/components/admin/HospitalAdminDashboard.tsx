@@ -53,6 +53,7 @@ import type {
 import { useWorkflow } from "../../workflow/AdmissionWorkflowContext";
 import { useNavigate } from "react-router-dom";
 import { AdminShell } from "./AdminShell";
+import { PolicyChecksCard } from "./PolicyChecksCard";
 import { PatientName } from "../PatientName";
 import { InsurerLabel } from "../InsurerChip";
 
@@ -806,6 +807,11 @@ function HospitalAdminDashboardContent({
                 </CardContent>
               </Card>
             )} */}
+
+            <PolicyChecksCard
+              checks={patient.policyChecks}
+              eligibility={patient.policyEligibility}
+            />
 
           </Stack>
 

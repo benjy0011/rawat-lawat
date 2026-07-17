@@ -195,10 +195,11 @@ function HospitalAdminDashboardContent({
   const isAiResubmitting = patient.status === "AI_RESUBMISSION";
   const isPackageUpdating = isSubmitting || isAiResubmitting;
   const isAiCheckLoading = readyToSubmit && isAiCheckingSubmission;
-  const hasAiApprovedPackage =
-    readyToSubmit &&
-    isAiCheckComplete &&
-    checkedSubmissionAttempt === patient.submissionAttempts;
+  const submissionChecks = buildSubmissionChecks(patient);
+  const allChecksPassed = submissionChecks.every(check => check.passed);
+  const checkHasRun =
+    isAiCheckComplete && checkedSubmissionAttempt === patient.submissionAttempts;
+  const hasAiApprovedPackage = readyToSubmit && checkHasRun && allChecksPassed;
   const nudgeDetail = nudgeDetails[patient.status];
 
   const runAiSubmissionCheck = () => {
@@ -846,15 +847,26 @@ function HospitalAdminDashboardContent({
                       Checking document completeness, policy eligibility, and the signed clinical note.
                     </Typography>
                   </Stack>
-                ) : hasAiApprovedPackage ? (
+                ) : checkHasRun ? (
                   <>
-                    <Typography variant="body2" mt={1} sx={{ color: "rgba(255,255,255,0.9)" }}>
-                      AI check complete. This package is ready for hospital confirmation.
+                    <Typography
+                      variant="body2"
+                      mt={1}
+                      sx={{ color: allChecksPassed ? "rgba(255,255,255,0.9)" : "#ffd7d0" }}
+                    >
+                      {allChecksPassed
+                        ? "AI check complete. This package is ready for hospital confirmation."
+                        : "AI check found issues to resolve before submitting."}
                     </Typography>
                     <Stack spacing={1} mt={2}>
-                      <AiCheckItem label="Patient identity matches the admission record" />
-                      <AiCheckItem label="Policy is active and eligible for this hospital" />
-                      <AiCheckItem label="Doctor note and supporting evidence are ready" />
+                      {submissionChecks.map(check => (
+                        <AiCheckItem
+                          key={check.label}
+                          label={check.label}
+                          passed={check.passed}
+                          detail={check.detail}
+                        />
+                      ))}
                     </Stack>
                   </>
                 ) : (
@@ -1521,11 +1533,82 @@ function getCurrentProgressStep(status: AdmissionStatus) {
   return 1;
 }
 
-function AiCheckItem({ label }: { label: string }) {
+type SubmissionCheck = { label: string; passed: boolean; detail: string };
+
+// Pre-submit review derived from the real admission data (identity, the
+// rule-based policy eligibility result, the signed note, and prepared
+// documents) instead of a fixed list of ticks.
+function buildSubmissionChecks(patient: AdmissionRecord): SubmissionCheck[] {
+  const failedPolicy = patient.policyChecks.filter(
+    check => check.status === "failed",
+  );
+  const eligibilityOk =
+    patient.policyEligibility === "ELIGIBLE" && failedPolicy.length === 0;
+  const readyDocuments = patient.retrievedDocuments.filter(
+    document => document.submissionStatus === "Ready to submit",
+  );
+  const documentsNeedReview = patient.retrievedDocuments.some(
+    document => document.submissionStatus === "Requires review",
+  );
+  const documentsOk = readyDocuments.length > 0 && !documentsNeedReview;
+
+  return [
+    {
+      label: "Patient identity matches the admission record",
+      passed: Boolean(patient.name && patient.memberId),
+      detail: `${patient.name} · ${patient.medicalRecordNumber}`,
+    },
+    {
+      label: "Policy is active and eligible",
+      passed: eligibilityOk,
+      detail: eligibilityOk
+        ? "All policy eligibility checks passed."
+        : `Failed: ${
+            failedPolicy.map(check => check.question).join("; ") ||
+            "policy not eligible"
+          }`,
+    },
+    {
+      label: "Doctor note electronically signed",
+      passed: patient.doctorNote.signed,
+      detail: patient.doctorNote.signed
+        ? `Signed by ${patient.doctorNote.signedBy ?? "the reviewing doctor"}`
+        : "Awaiting the doctor's signature.",
+    },
+    {
+      label: "Supporting documents ready",
+      passed: documentsOk,
+      detail: documentsOk
+        ? `${readyDocuments.length} documents ready to submit.`
+        : "Some documents still require review.",
+    },
+  ];
+}
+
+function AiCheckItem({
+  label,
+  passed,
+  detail,
+}: {
+  label: string;
+  passed: boolean;
+  detail?: string;
+}) {
   return (
     <Stack direction="row" alignItems="flex-start" spacing={1}>
-      <TaskAltRoundedIcon color="success" fontSize="small" />
-      <Typography variant="body2">{label}</Typography>
+      {passed ? (
+        <TaskAltRoundedIcon color="success" fontSize="small" />
+      ) : (
+        <CancelRoundedIcon color="error" fontSize="small" />
+      )}
+      <Box>
+        <Typography variant="body2">{label}</Typography>
+        {detail && (
+          <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.7)" }}>
+            {detail}
+          </Typography>
+        )}
+      </Box>
     </Stack>
   );
 }

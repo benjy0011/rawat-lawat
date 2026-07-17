@@ -328,7 +328,7 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
           ...record,
           policyChecks: policyChecks(index),
         }));
-      }, index * 1500);
+      }, index * 500);
     });
 
     window.setTimeout(() => {
@@ -351,7 +351,7 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
           },
         ),
       );
-    }, 6000);
+    }, 2000);
   };
 
   const signDoctorNote = (

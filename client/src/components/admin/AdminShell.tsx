@@ -8,7 +8,7 @@ type Props = { children: ReactNode };
 const navigation = [
   { label: "Admissions", icon: "clipboard" as const, path: "/admin/gl-process" },
   { label: "Policy Vault", icon: "shield" as const, path: "/admin/policy-vault" },
-  { label: "Patients", icon: "users" as const, path: "/admin/patients" },
+  { label: "Cases", icon: "users" as const, path: "/admin/patients" },
   { label: "Analytics", icon: "chart" as const, path: "/admin/analytics" },
   { label: "Settings", icon: "settings" as const },
 ];

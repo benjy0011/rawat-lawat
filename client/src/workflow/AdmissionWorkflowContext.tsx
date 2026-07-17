@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { pendingPatients, type PendingPatient } from "../data/pendingPatients";
 import { getPatientGenderFromNric } from "../types/patient";
 import type { Identity, Policy } from "../types/onboarding";
@@ -101,6 +101,20 @@ type WorkflowContextValue = {
 const WorkflowContext = createContext<WorkflowContextValue | undefined>(
   undefined,
 );
+
+// Patient profiles are kept in localStorage so a patient who has completed the
+// identity and policy scan once is not asked to submit those documents again on
+// their next visit or login.
+const profilesStorageKey = "rawat-lawat-patient-profiles";
+
+function loadStoredProfiles(): PatientProfile[] {
+  try {
+    const saved = localStorage.getItem(profilesStorageKey);
+    return saved ? (JSON.parse(saved) as PatientProfile[]) : [];
+  } catch {
+    return [];
+  }
+}
 
 const rejectionRequirements = [
   "Attach the latest laboratory result",
@@ -227,7 +241,11 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
   const [admissions, setAdmissions] = useState<AdmissionRecord[]>(() =>
     pendingPatients.map(makeSeedAdmission),
   );
-  const [profiles, setProfiles] = useState<PatientProfile[]>([]);
+  const [profiles, setProfiles] = useState<PatientProfile[]>(loadStoredProfiles);
+
+  useEffect(() => {
+    localStorage.setItem(profilesStorageKey, JSON.stringify(profiles));
+  }, [profiles]);
 
   const updateAdmission = (
     id: string,

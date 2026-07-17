@@ -13,21 +13,28 @@ import {
 } from "@mui/material";
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
+import CancelRoundedIcon from "@mui/icons-material/CancelRounded";
 import VolunteerActivismRoundedIcon from "@mui/icons-material/VolunteerActivismRounded";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import type { AdmissionStatus } from "../workflow/AdmissionWorkflowContext";
 import { useWorkflow } from "../workflow/AdmissionWorkflowContext";
+import { ApplicationLog } from "./ApplicationLog";
 import { PatientName } from "./PatientName";
 
 const progressSteps = [
-  "Details received",
-  "AI preparing package",
-  "Doctor review",
-  "Hospital review",
-  "Insurance decision",
+  "Onboard",
+  "Documents",
+  "Pending submit",
+  "GL issuance",
   "Admission confirmed",
 ];
+
+// Shown in place of the step number when the insurer did not approve the GL,
+// so the GL issuance step reads as a clear failure instead of an active step.
+function RejectedStepIcon() {
+  return <CancelRoundedIcon color="error" />;
+}
 
 type PatientStatus = {
   activeStep: number;
@@ -51,43 +58,43 @@ const patientStatus: Record<AdmissionStatus, PatientStatus> = {
     chipColor: "info",
   },
   DOCTOR_REVIEW: {
-    activeStep: 2,
+    activeStep: 1,
     heading: "Your doctor is reviewing the clinical note",
     detail: "The admission note is ready for the doctor’s review and electronic signature.",
     chipColor: "warning",
   },
   ADMIN_REVIEW: {
-    activeStep: 3,
+    activeStep: 2,
     heading: "Your hospital is completing the package",
     detail: "The hospital administrator is performing the final review before submitting your request to the insurer.",
     chipColor: "warning",
   },
   SUBMITTING_TO_INSURANCE: {
-    activeStep: 4,
+    activeStep: 3,
     heading: "Your request has been sent to the insurer",
     detail: "The insurer is reviewing the submitted admission package. We’ll update this page when a decision is received.",
     chipColor: "info",
   },
   INSURANCE_REJECTED: {
-    activeStep: 3,
+    activeStep: 2,
     heading: "We’re updating your admission package",
     detail: "The insurer requested additional information. Our AI assistant is preparing the update for the hospital to review.",
     chipColor: "warning",
   },
   AI_RESUBMISSION: {
-    activeStep: 3,
+    activeStep: 2,
     heading: "We’re preparing an update for the insurer",
     detail: "Our AI assistant is using available hospital information to fulfil the insurer’s new requirements.",
     chipColor: "info",
   },
   INSURANCE_APPROVED: {
-    activeStep: 5,
+    activeStep: 4,
     heading: "Your admission has been confirmed",
     detail: "Your insurer has approved the admission request. The hospital will contact you with the next steps.",
     chipColor: "success",
   },
   INSURANCE_FINAL_REJECTED: {
-    activeStep: 4,
+    activeStep: 3,
     heading: "Your admission request could not be approved",
     detail: "The insurer has issued a final decision. Please contact the hospital admissions team if you have questions about your next options.",
     chipColor: "error",
@@ -218,18 +225,26 @@ export function PatientAdmissionTracker() {
             )}
 
             <Stepper activeStep={current.activeStep} orientation="vertical" sx={{ mt: 4 }}>
-              {progressSteps.map((label, index) => (
-                <Step
-                  key={label}
-                  completed={index < current.activeStep || isApproved}
-                >
-                  <StepLabel>
-                    <Typography variant="body2" fontWeight={index === current.activeStep ? 700 : 500}>
-                      {label}
-                    </Typography>
-                  </StepLabel>
-                </Step>
-              ))}
+              {progressSteps.map((label, index) => {
+                const isGlIssuanceRejected = index === 3 && isFinalRejected;
+
+                return (
+                  <Step
+                    key={label}
+                    completed={index < current.activeStep || isApproved}
+                  >
+                    <StepLabel
+                      StepIconComponent={
+                        isGlIssuanceRejected ? RejectedStepIcon : undefined
+                      }
+                    >
+                      <Typography variant="body2" fontWeight={index === current.activeStep ? 700 : 500}>
+                        {label}
+                      </Typography>
+                    </StepLabel>
+                  </Step>
+                );
+              })}
             </Stepper>
 
             <Typography variant="caption" color="text.secondary" display="block" mt={3}>
@@ -260,6 +275,16 @@ export function PatientAdmissionTracker() {
               />
               This page updates as your admission moves through each review step.
             </Typography>
+          </CardContent>
+        </Card>
+
+        <Card
+          className="motion-card motion-enter motion-enter-delay-2"
+          variant="outlined"
+          sx={{ mt: 2 }}
+        >
+          <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
+            <ApplicationLog timeline={admission.timeline} />
           </CardContent>
         </Card>
       </Box>

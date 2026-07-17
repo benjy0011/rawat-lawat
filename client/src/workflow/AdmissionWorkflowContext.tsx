@@ -1,8 +1,16 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { pendingPatients, type PendingPatient } from "../data/pendingPatients";
 import { getPatientGenderFromNric } from "../types/patient";
 import type { Identity, Policy } from "../types/onboarding";
+import {
+  fetchAdmissions,
+  fetchProfiles,
+  seedAdmissions,
+  subscribeToAdmissions,
+  upsertAdmission,
+  upsertProfile,
+} from "../lib/workflowRepository";
 
 export type AdmissionStatus =
   | "PENDING_ADMIN_APPROVAL"
@@ -101,20 +109,6 @@ type WorkflowContextValue = {
 const WorkflowContext = createContext<WorkflowContextValue | undefined>(
   undefined,
 );
-
-// Patient profiles are kept in localStorage so a patient who has completed the
-// identity and policy scan once is not asked to submit those documents again on
-// their next visit or login.
-const profilesStorageKey = "rawat-lawat-patient-profiles";
-
-function loadStoredProfiles(): PatientProfile[] {
-  try {
-    const saved = localStorage.getItem(profilesStorageKey);
-    return saved ? (JSON.parse(saved) as PatientProfile[]) : [];
-  } catch {
-    return [];
-  }
-}
 
 const rejectionRequirements = [
   "Attach the latest laboratory result",
@@ -238,22 +232,73 @@ function addEvent(
 }
 
 export function WorkflowProvider({ children }: { children: React.ReactNode }) {
-  const [admissions, setAdmissions] = useState<AdmissionRecord[]>(() =>
-    pendingPatients.map(makeSeedAdmission),
-  );
-  const [profiles, setProfiles] = useState<PatientProfile[]>(loadStoredProfiles);
+  const [admissions, setAdmissions] = useState<AdmissionRecord[]>([]);
+  const [profiles, setProfiles] = useState<PatientProfile[]>([]);
 
+  // Mirror the latest admissions so the timed transitions in approveAdmission
+  // and beginResubmission can compute their next state without a stale closure.
+  const admissionsRef = useRef<AdmissionRecord[]>([]);
   useEffect(() => {
-    localStorage.setItem(profilesStorageKey, JSON.stringify(profiles));
-  }, [profiles]);
+    admissionsRef.current = admissions;
+  }, [admissions]);
+
+  // Load everything from Supabase on startup (seeding the demo admissions the
+  // first time the table is empty) and keep in sync with changes from any
+  // client via realtime.
+  useEffect(() => {
+    let active = true;
+
+    (async () => {
+      const [loadedProfiles, loadedAdmissions] = await Promise.all([
+        fetchProfiles(),
+        fetchAdmissions(),
+      ]);
+      if (!active) return;
+
+      setProfiles(loadedProfiles);
+
+      if (loadedAdmissions.length > 0) {
+        setAdmissions(loadedAdmissions);
+      } else {
+        const seeds = pendingPatients.map(makeSeedAdmission);
+        await seedAdmissions(seeds);
+        if (active) setAdmissions(seeds);
+      }
+    })().catch(error => {
+      console.error("Failed to load workflow data from Supabase", error);
+    });
+
+    const unsubscribe = subscribeToAdmissions(
+      record =>
+        setAdmissions(current =>
+          current.some(item => item.id === record.id)
+            ? current.map(item => (item.id === record.id ? record : item))
+            : [record, ...current],
+        ),
+      id => setAdmissions(current => current.filter(item => item.id !== id)),
+    );
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
 
   const updateAdmission = (
     id: string,
     update: (record: AdmissionRecord) => AdmissionRecord,
   ) => {
-    setAdmissions(current =>
-      current.map(record => (record.id === id ? update(record) : record)),
+    const target = admissionsRef.current.find(record => record.id === id);
+    if (!target) return;
+
+    const next = update(target);
+    admissionsRef.current = admissionsRef.current.map(record =>
+      record.id === id ? next : record,
     );
+    setAdmissions(current =>
+      current.map(record => (record.id === id ? next : record)),
+    );
+    void upsertAdmission(next);
   };
 
   const saveProfile = ({
@@ -261,14 +306,15 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
     policy,
     patientEmail,
   }: CreateAdmissionInput) => {
-    setProfiles(current => {
-      const profile = { patientEmail, identity, policy };
-      return current.some(item => item.patientEmail === patientEmail)
+    const profile = { patientEmail, identity, policy };
+    setProfiles(current =>
+      current.some(item => item.patientEmail === patientEmail)
         ? current.map(item =>
             item.patientEmail === patientEmail ? profile : item,
           )
-        : [...current, profile];
-    });
+        : [...current, profile],
+    );
+    void upsertProfile(profile);
   };
 
   const requestAdmission = (patientEmail: string, hospitalName: string) => {
@@ -307,7 +353,9 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
       ],
     };
 
+    admissionsRef.current = [admission, ...admissionsRef.current];
     setAdmissions(current => [admission, ...current]);
+    void upsertAdmission(admission);
     return admission;
   };
 

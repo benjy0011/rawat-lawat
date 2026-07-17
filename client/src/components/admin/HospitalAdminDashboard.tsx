@@ -842,7 +842,7 @@ function HospitalAdminDashboardContent({
                   </Stack>
                 ) : hasAiApprovedPackage ? (
                   <>
-                    <Typography variant="body2" mt={1} sx={{ color: "primary.light" }}>
+                    <Typography variant="body2" mt={1} sx={{ color: "rgba(255,255,255,0.9)" }}>
                       AI check complete. This package is ready for hospital confirmation.
                     </Typography>
                     <Stack spacing={1} mt={2}>
@@ -852,7 +852,7 @@ function HospitalAdminDashboardContent({
                     </Stack>
                   </>
                 ) : (
-                  <Typography variant="body2" mt={1.5} sx={{ color: "common.lightgray" }}>
+                  <Typography variant="body2" mt={1.5} sx={{ color: "rgba(255,255,255,0.8)" }}>
                     {pendingDoctorSignature
                       ? "Waiting for the doctor to sign the admission note before checking the package."
                       : !isPolicyEligible
@@ -870,10 +870,15 @@ function HospitalAdminDashboardContent({
                 {readyToSubmit && !isAiCheckLoading && (
                   <Button
                     fullWidth
-                    variant="outlined"
-                    // color="inherit"
+                    variant="contained"
                     onClick={runAiSubmissionCheck}
-                    sx={{ mt: 2.5, borderColor: "primary.light" }}
+                    sx={{
+                      mt: 2.5,
+                      bgcolor: "common.white",
+                      color: "primary.main",
+                      fontWeight: 700,
+                      "&:hover": { bgcolor: "grey.100" },
+                    }}
                   >
                     {hasAiApprovedPackage ? "Run AI check again" : "Run AI check"}
                   </Button>

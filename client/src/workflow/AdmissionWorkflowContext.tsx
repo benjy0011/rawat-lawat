@@ -50,6 +50,13 @@ export type PolicyCheck = {
 export type AdmissionRecord = PendingPatient & {
   patientEmail?: string;
   hospitalName: string;
+  // Full identity and policy captured when the admission was requested, so the
+  // record carries the complete patient profile (NRIC, date of birth, policy
+  // expiry) and always tallies with it, independent of later profile edits.
+  profile: {
+    identity: Identity;
+    policy: Policy;
+  };
   consentedAt: string;
   status: AdmissionStatus;
   doctorNote: {
@@ -152,6 +159,20 @@ function makeSeedAdmission(
   return {
     ...patient,
     hospitalName: "Central Hospital HQ",
+    profile: {
+      identity: {
+        fullName: patient.name,
+        nric: "",
+        dateOfBirth: "",
+        gender: patient.gender,
+      },
+      policy: {
+        provider: patient.insurer,
+        policyNumber: patient.memberId,
+        coverageTier: patient.policyPlan,
+        expiryDate: "",
+      },
+    },
     consentedAt: "Today, 10:30 AM",
     status: awaitingDoctorReview ? "DOCTOR_REVIEW" : "ADMIN_REVIEW",
     doctorNote: {
@@ -328,6 +349,7 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
       id,
       patientEmail,
       hospitalName,
+      profile: { identity, policy },
       consentedAt: "Just now",
       name: identity.fullName,
       gender: identity.gender || getPatientGenderFromNric(identity.nric),

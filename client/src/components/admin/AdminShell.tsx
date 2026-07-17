@@ -53,10 +53,6 @@ export function AdminShell({ children }: Props) {
             );
           })}
         </nav>
-        <button className="mt-auto flex items-center justify-center gap-2 rounded-lg bg-[#003d9b] px-4 py-3 text-sm font-semibold text-white">
-          <Icon name="plus" className="h-4 w-4" />
-          New admission
-        </button>
       </aside>
       <div className="lg:pl-64">
         <header className="motion-header sticky top-0 z-20 flex h-16 items-center justify-between border-b border-[#c3c6d6] bg-white px-5 lg:px-10">

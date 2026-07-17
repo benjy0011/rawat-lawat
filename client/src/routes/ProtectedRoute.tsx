@@ -7,6 +7,6 @@ export function ProtectedRoute({ roles }: { roles?: Array<"user" | "doctor" | "a
   if (!session)
     return <Navigate to="/login" replace state={{ from: location }} />;
   if (roles && !roles.includes(session.role))
-    return <Navigate to="/upload/identity" replace />;
+    return <Navigate to="/" replace />;
   return <Outlet />;
 }

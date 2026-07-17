@@ -266,24 +266,24 @@ export function AdminAnalyticsDashboard() {
               </Typography>
               <Box
                 display="grid"
-                placeItems="center"
                 width={150}
                 height={150}
                 borderRadius="50%"
                 mx="auto"
                 my={3}
                 sx={{
+                  placeItems: "center",
                   background:
                     "conic-gradient(#2e7d32 0 88%, #ed6c02 88% 96%, #e0e0e0 96% 100%)",
                 }}
               >
                 <Box
                   display="grid"
-                  placeItems="center"
                   width={112}
                   height={112}
                   borderRadius="50%"
                   bgcolor="background.paper"
+                  sx={{ placeItems: "center" }}
                 >
                   <Typography variant="h4" fontWeight={800}>
                     88%

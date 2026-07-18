@@ -84,3 +84,32 @@ export async function downloadGuaranteeLetter(
   window.open(url, "_blank", "noopener");
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
+
+export type ChatMessage = { role: "user" | "assistant"; content: string };
+
+// Ask the claims assistant a question, grounded in the patient's own context.
+export async function askAssistant(
+  messages: ChatMessage[],
+  context: unknown,
+): Promise<string> {
+  const token = await accessToken();
+
+  const response = await fetch(`${API_URL}/ai/assistant`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ messages, context }),
+  });
+
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as {
+      detail?: string;
+    } | null;
+    throw new Error(body?.detail || `Request failed (${response.status}).`);
+  }
+
+  const result = (await response.json()) as { reply: string };
+  return result.reply;
+}

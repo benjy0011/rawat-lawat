@@ -29,6 +29,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import type { AdmissionStatus } from "../workflow/AdmissionWorkflowContext";
 import { useWorkflow } from "../workflow/AdmissionWorkflowContext";
+import { PatientAssistant } from "./PatientAssistant";
 
 const hospitals = [
   "Central Hospital HQ",
@@ -225,6 +226,7 @@ export function PatientAdmissions() {
           </DialogActions>
         </Dialog>
       </Container>
+      <PatientAssistant />
     </Box>
   );
 }

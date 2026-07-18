@@ -23,6 +23,7 @@ import type { AdmissionStatus } from "../workflow/AdmissionWorkflowContext";
 import { useWorkflow } from "../workflow/AdmissionWorkflowContext";
 import { downloadGuaranteeLetter } from "../lib/api";
 import { ApplicationLog } from "./ApplicationLog";
+import { PatientAssistant } from "./PatientAssistant";
 import { PatientName } from "./PatientName";
 
 const progressSteps = [
@@ -335,6 +336,7 @@ export function PatientAdmissionTracker() {
           </CardContent>
         </Card>
       </Box>
+      <PatientAssistant />
     </Box>
   );
 }

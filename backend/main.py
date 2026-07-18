@@ -5,6 +5,7 @@ verifies the caller's Supabase session, then calls Groq (via the OpenAI-
 compatible API) to draft a doctor's admission recommendation.
 """
 import datetime
+import json
 import os
 import random
 import string
@@ -169,3 +170,60 @@ async def guarantee_letter(
         media_type="application/pdf",
         headers={"Content-Disposition": f'inline; filename="{filename}"'},
     )
+
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class AssistantRequest(BaseModel):
+    messages: list[ChatMessage]
+    context: dict | None = None
+
+
+ASSISTANT_SYSTEM = (
+    "You are the Rawat Lawat claims assistant, helping a patient understand "
+    "their hospital admission and insurance guarantee-letter status. Answer "
+    "ONLY using the context provided below. If the answer is not in the "
+    "context, say you do not have that information and suggest contacting the "
+    "hospital admissions team. Be concise, warm, and clear. Do not give medical "
+    "or legal advice; for clinical questions, advise contacting the hospital or "
+    "doctor. Never invent statuses, amounts, or dates.\n\nCONTEXT:\n{context}"
+)
+
+
+@app.post("/ai/assistant")
+async def assistant(
+    body: AssistantRequest,
+    authorization: str | None = Header(default=None),
+) -> dict:
+    await verify_user(authorization)
+
+    if groq_client is None:
+        raise HTTPException(
+            status_code=500,
+            detail="GROQ_API_KEY is not configured on the server.",
+        )
+
+    system = ASSISTANT_SYSTEM.format(
+        context=json.dumps(body.context or {}, ensure_ascii=False, indent=2)
+    )
+    # Only forward valid user/assistant turns, and cap the history length.
+    history = [
+        {"role": message.role, "content": message.content}
+        for message in body.messages
+        if message.role in ("user", "assistant") and message.content.strip()
+    ][-12:]
+
+    try:
+        completion = await groq_client.chat.completions.create(
+            model=GROQ_MODEL,
+            messages=[{"role": "system", "content": system}, *history],
+            temperature=0.3,
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"AI service error: {exc}")
+
+    reply = (completion.choices[0].message.content or "").strip()
+    return {"reply": reply}

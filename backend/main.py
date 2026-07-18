@@ -4,14 +4,19 @@ A small FastAPI backend for the AI features that need a server-side key. It
 verifies the caller's Supabase session, then calls Groq (via the OpenAI-
 compatible API) to draft a doctor's admission recommendation.
 """
+import datetime
 import os
+import random
+import string
 
 import httpx
 from dotenv import load_dotenv
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from openai import AsyncOpenAI
 from pydantic import BaseModel
+
+from gl_pdf import build_guarantee_letter
 
 load_dotenv()
 
@@ -121,3 +126,46 @@ async def recommendation(
 
     text = (completion.choices[0].message.content or "").strip()
     return {"recommendation": text}
+
+
+class GuaranteeLetterRequest(BaseModel):
+    patientName: str
+    memberId: str
+    insurer: str
+    hospitalName: str
+    guaranteedAmount: str
+    nric: str | None = None
+    policyPlan: str | None = None
+    diagnosis: str | None = None
+    admissionReason: str | None = None
+    admissionId: str | None = None
+
+
+@app.post("/gl/pdf")
+async def guarantee_letter(
+    body: GuaranteeLetterRequest,
+    authorization: str | None = Header(default=None),
+) -> Response:
+    await verify_user(authorization)
+
+    today = datetime.date.today()
+    reference = "GL-{date}-{suffix}".format(
+        date=today.strftime("%Y%m%d"),
+        suffix="".join(random.choices(string.ascii_uppercase + string.digits, k=4)),
+    )
+    valid_until = today + datetime.timedelta(days=30)
+
+    data = {
+        **body.model_dump(),
+        "glReference": reference,
+        "issueDate": today.strftime("%d %B %Y"),
+        "validUntil": valid_until.strftime("%d %B %Y"),
+    }
+
+    pdf = build_guarantee_letter(data)
+    filename = f"guarantee-letter-{reference}.pdf"
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )

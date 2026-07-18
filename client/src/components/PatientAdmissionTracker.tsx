@@ -14,11 +14,14 @@ import {
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
 import AddRoundedIcon from "@mui/icons-material/AddRounded";
 import CancelRoundedIcon from "@mui/icons-material/CancelRounded";
+import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded";
 import VolunteerActivismRoundedIcon from "@mui/icons-material/VolunteerActivismRounded";
+import { useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import type { AdmissionStatus } from "../workflow/AdmissionWorkflowContext";
 import { useWorkflow } from "../workflow/AdmissionWorkflowContext";
+import { downloadGuaranteeLetter } from "../lib/api";
 import { ApplicationLog } from "./ApplicationLog";
 import { PatientName } from "./PatientName";
 
@@ -106,6 +109,8 @@ export function PatientAdmissionTracker() {
   const navigate = useNavigate();
   const { session } = useAuth();
   const { admissions } = useWorkflow();
+  const [isDownloadingGl, setIsDownloadingGl] = useState(false);
+  const [glError, setGlError] = useState("");
   const admission = admissions.find(
     item =>
       item.id === admissionId && item.patientEmail === session?.email,
@@ -114,6 +119,22 @@ export function PatientAdmissionTracker() {
   if (!admission) {
     return <Navigate to="/patient/admissions" replace />;
   }
+
+  const handleDownloadGl = async () => {
+    setGlError("");
+    setIsDownloadingGl(true);
+    try {
+      await downloadGuaranteeLetter(admission);
+    } catch (error) {
+      setGlError(
+        error instanceof Error
+          ? error.message
+          : "Could not generate the guarantee letter.",
+      );
+    } finally {
+      setIsDownloadingGl(false);
+    }
+  };
 
   const current = patientStatus[admission.status];
   const isApproved = admission.status === "INSURANCE_APPROVED";
@@ -227,6 +248,27 @@ export function PatientAdmissionTracker() {
               >
                 We can help you explore options
               </Button>
+            )}
+
+            {isApproved && (
+              <>
+                <Button
+                  fullWidth
+                  variant="contained"
+                  color="success"
+                  startIcon={<PictureAsPdfRoundedIcon />}
+                  onClick={handleDownloadGl}
+                  loading={isDownloadingGl}
+                  sx={{ mt: 2.5 }}
+                >
+                  Download Guarantee Letter
+                </Button>
+                {glError && (
+                  <Alert severity="error" sx={{ mt: 1.5 }}>
+                    {glError}
+                  </Alert>
+                )}
+              </>
             )}
 
             <Stepper activeStep={current.activeStep} orientation="vertical" sx={{ mt: 4 }}>

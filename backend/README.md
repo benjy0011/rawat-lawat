@@ -12,6 +12,12 @@ draft a doctor's admission recommendation.
   ```json
   { "diagnosis": "...", "estimatedCost": "MYR 6,400", "admissionReason": "..." }
   ```
+- `POST /gl/pdf` — render the Initial Guarantee Letter as a PDF for an approved
+  admission (`application/pdf`). Also requires the Supabase access token.
+  ```json
+  { "patientName": "...", "memberId": "...", "insurer": "...",
+    "hospitalName": "...", "guaranteedAmount": "MYR 12,800", "diagnosis": "..." }
+  ```
 
 ## Setup
 

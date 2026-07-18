@@ -31,6 +31,7 @@ import SmartToyOutlinedIcon from "@mui/icons-material/SmartToyOutlined";
 import SupportAgentRoundedIcon from "@mui/icons-material/SupportAgentRounded";
 import TaskAltRoundedIcon from "@mui/icons-material/TaskAltRounded";
 import RadioButtonUncheckedRoundedIcon from "@mui/icons-material/RadioButtonUncheckedRounded";
+import PictureAsPdfRoundedIcon from "@mui/icons-material/PictureAsPdfRounded";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import { useState, type ReactNode } from "react";
 import aiaPolicyDocument from "../../assets/aia_policy.pdf";
@@ -57,6 +58,7 @@ import { AdminShell } from "./AdminShell";
 import { PolicyChecksCard } from "./PolicyChecksCard";
 import { PatientName } from "../PatientName";
 import { InsurerLabel } from "../InsurerChip";
+import { downloadGuaranteeLetter } from "../../lib/api";
 
 type StatusDetails = {
   label: string;
@@ -180,6 +182,8 @@ function HospitalAdminDashboardContent({
   const [checkedSubmissionAttempt, setCheckedSubmissionAttempt] = useState<number | null>(null);
   const [documentsConfirmed, setDocumentsConfirmed] = useState(false);
   const [isSendingNudge, setIsSendingNudge] = useState(false);
+  const [isDownloadingGl, setIsDownloadingGl] = useState(false);
+  const [glError, setGlError] = useState("");
   const submissionDocuments = patient.retrievedDocuments.filter(
     document => document.submissionStatus !== "Reference only",
   );
@@ -224,6 +228,22 @@ function HospitalAdminDashboardContent({
       sendNudge(patient.id);
       setIsSendingNudge(false);
     }, 1500);
+  };
+
+  const handleDownloadGl = async () => {
+    setGlError("");
+    setIsDownloadingGl(true);
+    try {
+      await downloadGuaranteeLetter(patient);
+    } catch (error) {
+      setGlError(
+        error instanceof Error
+          ? error.message
+          : "Could not generate the guarantee letter.",
+      );
+    } finally {
+      setIsDownloadingGl(false);
+    }
   };
   const currentStepDetails = (
     <Box maxWidth={300} p={0.5}>
@@ -931,6 +951,32 @@ function HospitalAdminDashboardContent({
                   >
                     {hasAiApprovedPackage ? "Run AI check again" : "Run AI check"}
                   </Button>
+                )}
+
+                {isApproved && (
+                  <>
+                    <Button
+                      fullWidth
+                      variant="contained"
+                      startIcon={<PictureAsPdfRoundedIcon />}
+                      onClick={handleDownloadGl}
+                      loading={isDownloadingGl}
+                      sx={{
+                        mt: 2.5,
+                        bgcolor: "common.white",
+                        color: "primary.main",
+                        fontWeight: 700,
+                        "&:hover": { bgcolor: "grey.100" },
+                      }}
+                    >
+                      Download Guarantee Letter
+                    </Button>
+                    {glError && (
+                      <Alert severity="error" sx={{ mt: 1.5 }}>
+                        {glError}
+                      </Alert>
+                    )}
+                  </>
                 )}
 
                 {/*

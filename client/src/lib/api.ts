@@ -1,8 +1,16 @@
 import { supabase } from "./supabaseClient";
+import type { AdmissionRecord } from "../workflow/AdmissionWorkflowContext";
 
 // Base URL of the FastAPI AI service (see backend/). The Supabase access token
 // is attached so the server can verify the caller is a signed-in user.
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+
+async function accessToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) throw new Error("You must be signed in.");
+  return token;
+}
 
 type RecommendationInput = {
   diagnosis: string;
@@ -13,11 +21,7 @@ type RecommendationInput = {
 export async function draftRecommendation(
   input: RecommendationInput,
 ): Promise<string> {
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
-  if (!token) {
-    throw new Error("You must be signed in to generate a recommendation.");
-  }
+  const token = await accessToken();
 
   const response = await fetch(`${API_URL}/ai/recommendation`, {
     method: "POST",
@@ -37,4 +41,46 @@ export async function draftRecommendation(
 
   const result = (await response.json()) as { recommendation: string };
   return result.recommendation;
+}
+
+// Request the Initial Guarantee Letter PDF for an approved admission and open
+// it in a new tab.
+export async function downloadGuaranteeLetter(
+  admission: AdmissionRecord,
+): Promise<void> {
+  const token = await accessToken();
+
+  const payload = {
+    patientName: admission.name,
+    memberId: admission.memberId,
+    insurer: admission.insurer,
+    hospitalName: admission.hospitalName,
+    guaranteedAmount: admission.doctorNote.estimatedCost ?? "",
+    nric: admission.profile.identity.nric || undefined,
+    policyPlan: admission.policyPlan || undefined,
+    diagnosis: admission.doctorNote.diagnosis || undefined,
+    admissionReason: admission.admissionReason || undefined,
+    admissionId: admission.id,
+  };
+
+  const response = await fetch(`${API_URL}/gl/pdf`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as {
+      detail?: string;
+    } | null;
+    throw new Error(body?.detail || `Request failed (${response.status}).`);
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  window.open(url, "_blank", "noopener");
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }

@@ -46,15 +46,17 @@ rawat-lawat/
 
 - **PaddleOCR** — identity and policy scanning that runs entirely in the browser
 
-### AI Service
+### AI & Documents Service
 
 - **FastAPI** — a small Python backend (`backend/`) that keeps the AI key
-  server-side
+  server-side and generates documents
 - **Groq** via the **OpenAI SDK** — drafts a doctor's admission recommendation
   with `openai/gpt-oss-20b`
+- **ReportLab** — renders the approved Initial Guarantee Letter as a PDF
 
-The doctor's **AI Generate** button uses this service, and falls back to manual
-entry if it is unavailable.
+The doctor's **AI Generate** button uses this service (and falls back to manual
+entry if it is unavailable), and approved admissions can download their
+**Guarantee Letter** PDF.
 
 ## Getting Started
 
@@ -217,7 +219,10 @@ load.
 
 ### Insurer
 
-- Review the submitted guarantee letter package and record the decision
+- Review the submitted guarantee letter package and record the decision (approve,
+  request information with a checklist, or decline with a reason)
+- On approval, the patient and hospital can download a generated **Guarantee
+  Letter** PDF
 
 ### Platform
 

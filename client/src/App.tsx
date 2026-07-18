@@ -3,6 +3,7 @@ import {
   AppBar,
   Avatar,
   Box,
+  CircularProgress,
   Container,
   IconButton,
   Stack,
@@ -203,6 +204,23 @@ function UploadLayout() {
 }
 
 function AppRoutes() {
+  const { loading } = useAuth();
+
+  // Hold routing until the persisted session is restored, so protected routes
+  // don't briefly bounce to the login screen on a hard refresh.
+  if (loading) {
+    return (
+      <Box
+        minHeight="100vh"
+        display="grid"
+        sx={{ placeItems: "center" }}
+        bgcolor="background.default"
+      >
+        <CircularProgress />
+      </Box>
+    );
+  }
+
   return (
     <Routes>
       <Route path="/" element={<RoleLanding />} />

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import {
   Alert,
@@ -25,7 +25,7 @@ import { Visibility, VisibilityOff } from "@mui/icons-material";
 import HealthAndSafetyOutlinedIcon from "@mui/icons-material/HealthAndSafetyOutlined";
 // import VerifiedUserOutlinedIcon from "@mui/icons-material/VerifiedUserOutlined";
 import { useLocation, useNavigate } from "react-router-dom";
-import { authenticateMockUser, demoLogin } from "../auth/mockUsers";
+import { demoAccounts } from "../auth/demoAccounts";
 import { useAuth } from "../auth/useAuth";
 
 type Mode = "signIn" | "signUp";
@@ -38,11 +38,29 @@ export function AuthScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [error, setError] = useState("");
-  const { signIn } = useAuth();
+  const [submitting, setSubmitting] = useState(false);
+  const { session, signIn, signUp } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const isSignUp = mode === "signUp";
-  const submit = (event: FormEvent) => {
+
+  // Once authenticated, route to the role's home (or the originally requested
+  // page). This runs after sign-in, sign-up, or a quick demo login resolves.
+  useEffect(() => {
+    if (!session) return;
+    const requestedRoute = (
+      location.state as { from?: { pathname?: string } } | null
+    )?.from?.pathname;
+    const redirectTo =
+      session.role === "admin"
+        ? "/admin/gl-process"
+        : session.role === "doctor"
+          ? "/doctor/admissions"
+          : (requestedRoute ?? "/patient/admissions");
+    navigate(redirectTo, { replace: true });
+  }, [session, location.state, navigate]);
+
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (isSignUp && !name.trim())
       return setError("Enter your full name to continue.");
@@ -52,29 +70,23 @@ export function AuthScreen() {
       return setError("Use a password with at least 8 characters.");
     if (isSignUp && !termsAccepted)
       return setError("Accept the terms to continue.");
-    const session = isSignUp
-      ? {
-          name: name.trim(),
-          email: email.trim(),
-          role: "user" as const,
-        }
-      : authenticateMockUser(email, password);
 
-    if (!session) {
-      return setError("Incorrect email or password.");
-    }
+    setError("");
+    setSubmitting(true);
+    const message = isSignUp
+      ? await signUp(name.trim(), email.trim(), password)
+      : await signIn(email.trim(), password);
+    setSubmitting(false);
+    if (message) setError(message);
+    // On success, the session effect above handles navigation.
+  };
 
-    const requestedRoute = (
-      location.state as { from?: { pathname?: string } } | null
-    )?.from?.pathname;
-    const redirectTo = session.role === "admin"
-      ? "/admin/gl-process"
-      : session.role === "doctor"
-        ? "/doctor/admissions"
-        : (requestedRoute ?? "/patient/admissions");
-
-    signIn(session);
-    navigate(redirectTo, { replace: true });
+  const quickSignIn = async (account: { email: string; password: string }) => {
+    setError("");
+    setSubmitting(true);
+    const message = await signIn(account.email, account.password);
+    setSubmitting(false);
+    if (message) setError(message);
   };
 
   return (
@@ -268,6 +280,8 @@ export function AuthScreen() {
                   type="submit"
                   variant="contained"
                   size="large"
+                  loading={submitting}
+                  disabled={submitting}
                   endIcon={<ArrowForwardRoundedIcon />}
                   className="auth-submit"
                 >
@@ -281,36 +295,24 @@ export function AuthScreen() {
                 textAlign="center"
                 mt={3}
               >
-                Demo sign-in: <b>{demoLogin.email}</b> /{" "}
-                <b>{demoLogin.password}</b>
+                Demo sign-in: <b>{demoAccounts.patient.email}</b> /{" "}
+                <b>{demoAccounts.patient.password}</b>
               </Typography>
               <Button
                 fullWidth
                 size="small"
+                disabled={submitting}
                 sx={{ mt: 1.25 }}
-                onClick={() => {
-                  signIn({
-                    name: "Hospital Administrator",
-                    email: "admin@hospital.com",
-                    role: "admin",
-                  });
-                  navigate("/admin/gl-process");
-                }}
+                onClick={() => quickSignIn(demoAccounts.admin)}
               >
                 Open hospital admin demo
               </Button>
               <Button
                 fullWidth
                 size="small"
+                disabled={submitting}
                 sx={{ mt: 0.5 }}
-                onClick={() => {
-                  signIn({
-                    name: "Dr. Farah Ismail",
-                    email: "doctor@hospital.com",
-                    role: "doctor",
-                  });
-                  navigate("/doctor/admissions");
-                }}
+                onClick={() => quickSignIn(demoAccounts.doctor)}
               >
                 Open doctor demo
               </Button>

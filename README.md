@@ -1,112 +1,187 @@
-Rawat Lawat — Hospital Admission & Guarantee Letter Platform
-A web platform that coordinates hospital admissions and insurance guarantee letter (GL) processing across patients, doctors, hospital administrators, and insurers. Patients scan their identity and policy documents once, request an admission, and track it end to end; hospital staff review the package, run policy eligibility checks against the Policy Vault, and submit it to the insurer.
+# Rawat Lawat
 
-Project Structure
+Hospital Admission & Guarantee Letter (GL) Platform
+
+Rawat Lawat coordinates hospital admissions and insurance guarantee-letter processing across patients, doctors, hospital administrators, and insurers. Patients scan their identity and policy documents once, request admission, and track their case from submission through the insurer’s decision.
+
+## Features
+
+### Patient
+
+- Scan identity and policy documents for reuse in future admissions
+- Request admission at a selected hospital with consent
+- Track progress across onboarding, documents, submission, and final decision
+- View a complete admission activity log
+
+### Doctor
+
+- Review prepared admission notes
+- Record diagnosis, estimated cost, and recommendation
+- Electronically sign clinical notes
+
+### Hospital Administrator
+
+- Review incoming admission requests and manage the case queue
+- Verify policy eligibility through the Policy Vault
+- Check policy status, coverage, waiting periods, and sum insured
+- Review and submit completed GL packages to insurers
+- Access the Policy Vault, patient registry, and analytics
+
+### Insurer
+
+- Review submitted guarantee-letter packages
+- Record claim decisions
+
+### Platform
+
+- Persistent, real-time updates shared across all roles
+- GL package assembly from patient, policy, and clinical information
+- In-browser identity and policy-document recognition
+
+## Tech Stack
+
+| Area | Technology |
+| --- | --- |
+| Frontend | React 19, TypeScript, Vite 8 |
+| UI | MUI 7 |
+| Routing | React Router 7 |
+| Database | Supabase PostgreSQL |
+| Realtime | Supabase Realtime |
+| OCR | PaddleOCR, running entirely in the browser |
+
+## Project Structure
+
+```text
 client/
-├── public/                 # Static assets and OCR models (downloaded at build)
+├── public/                 # Static assets and downloaded OCR models
 ├── src/
-│   ├── auth/               # Session handling and role-based access
-│   ├── components/         # Screens and UI, grouped by role
+│   ├── auth/               # Sessions and role-based access
+│   ├── components/
 │   │   ├── admin/          # Hospital administrator dashboard and queues
 │   │   ├── doctor/         # Doctor review and note signing
 │   │   └── insurance/      # Insurer claim review
 │   ├── data/               # Policy Vault and reference data
 │   ├── lib/                # Supabase client and workflow data access
 │   ├── types/              # Shared domain types
-│   ├── utils/              # In-browser OCR (document recognition)
-│   └── workflow/           # Admission workflow state and eligibility rules
-├── supabase-schema.sql     # Database schema (run once in Supabase)
+│   ├── utils/              # In-browser OCR
+│   └── workflow/           # Admission workflow and eligibility rules
+├── supabase-schema.sql     # Supabase database schema
 ├── .env.example            # Environment variable template
 └── package.json
-Tech Stack
-Frontend
-React 19 with the React Compiler
-Vite 8 — dev server and build
-TypeScript
-MUI 7 and Tailwind CSS 4 — UI and styling
-React Router 7 — routing
-Data & Realtime
-Supabase (PostgreSQL) — persistence for patient profiles and admissions
-Supabase Realtime — live status updates shared across roles
-@supabase/supabase-js — browser client (row-level security enforced)
-Document Recognition
-PaddleOCR — identity and policy scanning that runs entirely in the browser
-Getting Started
-Prerequisites
-Node.js 22 or newer
-npm
-A Supabase project (free tier is sufficient)
-1. Install dependencies
-From the client directory:
+```
 
+## Prerequisites
+
+- Node.js 22+
+- npm
+- A Supabase project (the free tier is sufficient)
+
+## Getting Started
+
+### 1. Install dependencies
+
+From the `client` directory:
+
+```bash
 npm install
-For a clean install using the locked dependency versions:
+```
 
+Or use the lockfile for a clean install:
+
+```bash
 npm ci
-2. Set up the database
-In the Supabase dashboard, open SQL Editor → New query, paste the contents of supabase-schema.sql, and run it. This creates the patient_profiles and admissions tables, row-level security policies, and enables realtime on admissions.
+```
 
-3. Configure environment variables
-Copy the template and fill in your project values:
+### 2. Set up Supabase
 
+1. Open your Supabase project dashboard.
+2. Go to **SQL Editor** → **New query**.
+3. Paste and run the contents of `supabase-schema.sql`.
+
+This creates the `patient_profiles` and `admissions` tables, configures row-level security policies, and enables realtime updates for admissions.
+
+### 3. Configure environment variables
+
+Copy the environment template:
+
+```bash
 cp .env.example .env.local
+```
+
+Then update `.env.local`:
+
+```env
 VITE_SUPABASE_URL=https://your-project-ref.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your_key_here
-Project URL — Supabase dashboard → Project Settings → Data API
-Publishable key — Project Settings → API Keys (the sb_publishable_... key; safe for the browser because row-level security is enabled)
-The sb_secret_... key must never be placed in the client.
+```
 
-4. Start the development server
+Find these values in Supabase:
+
+- **Project URL:** Project Settings → Data API
+- **Publishable key:** Project Settings → API Keys
+
+> Never expose an `sb_secret_...` key in the client application.
+
+### 4. Start the development server
+
+```bash
 npm run dev
-Open http://localhost:3000 and keep the terminal running. Press Ctrl+C to stop.
+```
 
-Demo Accounts
-Role	Email	Password
-Patient	patient@example.com	Patient123!
-Doctor	doctor@hospital.com	Doctor123!
-Administrator	admin@hospital.com	Admin123!
-Sample Data
-The first time the app loads against an empty database, it seeds four demo admissions with matching patient profiles into Supabase, so the hospital and doctor views are populated immediately:
+Open [http://localhost:3000](http://localhost:3000).
 
-Patient	State
-Tan Ah Kow	Signed note, eligible, ready to submit
-Lim Wei Jian	Signed note, eligible, ready to submit
-Nur Aisha Rahman	Awaiting the doctor's signature
-Siti Hawa Ismail	Not eligible (elective procedure waiting period)
-Sign in as the doctor to review and sign Nur Aisha Rahman's note, or as the administrator to review the eligible cases and submit them to the insurer.
+## Demo Accounts
 
-To reset the demo data, clear the admissions and patient_profiles tables in the Supabase dashboard (Table Editor); the sample data reseeds on the next load.
+| Role | Email | Password |
+| --- | --- | --- |
+| Patient | `patient@example.com` | `Patient123!` |
+| Doctor | `doctor@hospital.com` | `Doctor123!` |
+| Administrator | `admin@hospital.com` | `Admin123!` |
 
-Features
-Patient
-One-time identity and policy document scan (kept for future admissions)
-Request an admission at a chosen hospital with consent
-Track an admission through onboarding, documents, submission, and the final decision, with a full activity log
-Doctor
-Review the prepared admission note
-Enter the diagnosis, estimated cost, and recommendation
-Electronically sign the note
-Hospital Administrator
-Review incoming admission requests and manage the case queue
-Policy eligibility checks against the Policy Vault (active policy, coverage, waiting periods, and sum insured)
-Pre-submission package review and submission to the insurer
-Policy Vault, patient case registry, and analytics
-Insurer
-Review the submitted guarantee letter package and record the decision
-Platform
-Shared, persistent state — an update by one role appears live for the others
-Guarantee letter package assembly from patient, policy, and clinical data
-Commands
+## Sample Data
+
+When the app first loads against an empty database, it seeds four demo admissions and associated patient profiles.
+
+| Patient | Status |
+| --- | --- |
+| Tan Ah Kow | Signed note, eligible, ready to submit |
+| Lim Wei Jian | Signed note, eligible, ready to submit |
+| Nur Aisha Rahman | Awaiting doctor signature |
+| Siti Hawa Ismail | Not eligible due to an elective-procedure waiting period |
+
+Try signing in as:
+
+- **Doctor** to review and sign Nur Aisha Rahman’s note.
+- **Administrator** to review eligible cases and submit them to the insurer.
+
+To reset the demo data, clear the `admissions` and `patient_profiles` tables in Supabase’s Table Editor. The app reseeds them the next time it loads.
+
+## Available Commands
+
+```bash
 npm run dev      # Start the development server
 npm run build    # Download OCR models and create a production build
 npm run lint     # Run ESLint
 npm run preview  # Preview the production build
-OCR Models
-Document recognition runs in the browser. The prebuild script downloads the required OCR models into public/models before the Vite build and ensures they are included in dist/models for deployment; generated model files are excluded from Git. The build environment therefore needs outbound internet access.
+```
 
-npm run build
-Deployment
-The app is a static build and deploys to any static host (e.g. Vercel). Set the same VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY environment variables in the hosting provider so the production build can reach Supabase.
+## OCR Models
 
-License
+Document recognition runs entirely in the browser using PaddleOCR.
+
+During `npm run build`, the prebuild script downloads the required OCR models to `public/models` and includes them in `dist/models`. Generated model files are excluded from Git, so the build environment needs outbound internet access.
+
+## Deployment
+
+Rawat Lawat produces a static build and can be deployed to any static hosting provider, such as Vercel.
+
+Set the same environment variables in your hosting provider:
+
+```env
+VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your_key_here
+```
+
+## License
+
 MIT

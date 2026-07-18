@@ -210,6 +210,11 @@ export function PatientAdmissionTracker() {
               <Typography variant="body2" mt={0.5}>
                 {current.detail}
               </Typography>
+              {isFinalRejected && admission.insurerDecisionNote && (
+                <Typography variant="body2" mt={1} fontWeight={600}>
+                  Reason: {admission.insurerDecisionNote}
+                </Typography>
+              )}
             </Alert>
 
             {isFinalRejected && (

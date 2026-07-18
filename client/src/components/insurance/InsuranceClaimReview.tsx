@@ -2,13 +2,16 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   Chip,
   Divider,
   FormControl,
   FormControlLabel,
+  FormGroup,
   Radio,
   RadioGroup,
   Stack,
+  TextField,
   Typography,
 } from "@mui/material";
 import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
@@ -25,7 +28,10 @@ import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { InsurerLabel } from "../InsurerChip";
 import { PatientName } from "../PatientName";
 import {
+  type InsurerDecisionDetails,
   type InsurerOutcome,
+  type InsurerRequirementId,
+  requirementCatalog,
   useWorkflow,
 } from "../../workflow/AdmissionWorkflowContext";
 
@@ -55,11 +61,29 @@ const decisionOptions: Array<{
   },
 ];
 
+// Outlined input styling for the dark decision panel.
+const darkFieldSx = {
+  mt: 1,
+  "& .MuiOutlinedInput-root": {
+    color: "#e2e8f0",
+    "& fieldset": { borderColor: "rgba(148, 163, 184, 0.25)" },
+    "&:hover fieldset": { borderColor: "rgba(148, 163, 184, 0.45)" },
+    "&.Mui-focused fieldset": { borderColor: "#5eead4" },
+  },
+  "& .MuiInputBase-input::placeholder": { color: "#64748b", opacity: 1 },
+};
+
 export function InsuranceClaimReview() {
   const { patientId } = useParams();
   const navigate = useNavigate();
   const { admissions, reviewInsurerClaim } = useWorkflow();
   const [outcome, setOutcome] = useState<InsurerOutcome>("APPROVE");
+  const [requirementIds, setRequirementIds] = useState<InsurerRequirementId[]>([
+    "lab-result",
+    "estimated-cost",
+  ]);
+  const [remarks, setRemarks] = useState("");
+  const [reason, setReason] = useState("");
   const [isResponding, setIsResponding] = useState(false);
   const admission = admissions.find(item => item.id === patientId);
 
@@ -75,12 +99,38 @@ export function InsuranceClaimReview() {
     option => option.value === outcome,
   )!;
 
+  const toggleRequirement = (id: InsurerRequirementId) => {
+    setRequirementIds(current =>
+      current.includes(id)
+        ? current.filter(item => item !== id)
+        : [...current, id],
+    );
+  };
+
+  // Request-info needs at least one item; decline needs a reason.
+  const canDecide =
+    outcome === "APPROVE" ||
+    (outcome === "REJECT" && requirementIds.length > 0) ||
+    (outcome === "FINAL_REJECT" && reason.trim().length > 0);
+
   const sendResponse = () => {
-    if (!isAwaitingReview) return;
+    if (!isAwaitingReview || !canDecide) return;
+
+    const details: InsurerDecisionDetails =
+      outcome === "REJECT"
+        ? {
+            requirements: requirementCatalog.filter(item =>
+              requirementIds.includes(item.id),
+            ),
+            remarks: remarks.trim() || undefined,
+          }
+        : outcome === "FINAL_REJECT"
+          ? { reason: reason.trim() }
+          : {};
 
     setIsResponding(true);
     window.setTimeout(() => {
-      reviewInsurerClaim(admission.id, outcome);
+      reviewInsurerClaim(admission.id, outcome, details);
       navigate(`/admin/gl-process/${admission.id}`);
     }, 1500);
   };
@@ -435,6 +485,73 @@ export function InsuranceClaimReview() {
                         </RadioGroup>
                       </FormControl>
 
+                      {outcome === "REJECT" && (
+                        <Box mt={2.5}>
+                          <Typography
+                            variant="caption"
+                            color="#94a3b8"
+                            fontWeight={800}
+                            letterSpacing=".08em"
+                          >
+                            REQUIRED INFORMATION
+                          </Typography>
+                          <FormGroup sx={{ mt: 0.5 }}>
+                            {requirementCatalog.map(item => (
+                              <FormControlLabel
+                                key={item.id}
+                                control={
+                                  <Checkbox
+                                    size="small"
+                                    checked={requirementIds.includes(item.id)}
+                                    onChange={() => toggleRequirement(item.id)}
+                                    sx={{
+                                      color: "#64748b",
+                                      "&.Mui-checked": { color: "#fbbf24" },
+                                    }}
+                                  />
+                                }
+                                label={
+                                  <Typography variant="body2" color="#e2e8f0">
+                                    {item.label}
+                                  </Typography>
+                                }
+                              />
+                            ))}
+                          </FormGroup>
+                          <TextField
+                            fullWidth
+                            multiline
+                            minRows={2}
+                            value={remarks}
+                            onChange={event => setRemarks(event.target.value)}
+                            placeholder="Additional remarks (optional)…"
+                            sx={darkFieldSx}
+                          />
+                        </Box>
+                      )}
+
+                      {outcome === "FINAL_REJECT" && (
+                        <Box mt={2.5}>
+                          <Typography
+                            variant="caption"
+                            color="#94a3b8"
+                            fontWeight={800}
+                            letterSpacing=".08em"
+                          >
+                            REASON FOR DECLINE
+                          </Typography>
+                          <TextField
+                            fullWidth
+                            multiline
+                            minRows={2}
+                            value={reason}
+                            onChange={event => setReason(event.target.value)}
+                            placeholder="Explain why the request is declined…"
+                            sx={{ ...darkFieldSx, mt: 0.5 }}
+                          />
+                        </Box>
+                      )}
+
                       <Alert
                         icon={<DescriptionOutlinedIcon fontSize="inherit" />}
                         severity="info"
@@ -452,7 +569,7 @@ export function InsuranceClaimReview() {
                         fullWidth
                         variant="contained"
                         loading={isResponding}
-                        disabled={isResponding}
+                        disabled={isResponding || !canDecide}
                         onClick={sendResponse}
                         endIcon={!isResponding ? <KeyboardArrowRightRoundedIcon /> : undefined}
                         sx={{

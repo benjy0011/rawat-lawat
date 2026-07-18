@@ -50,11 +50,25 @@ export type PolicyCheck = {
   detail?: string;
 };
 
+export type InsurerRequirementId =
+  | "lab-result"
+  | "estimated-cost"
+  | "discharge-summary"
+  | "specialist-referral";
+
 export type InsurerRequirement = {
-  id: "lab-result" | "estimated-cost";
+  id: InsurerRequirementId;
   label: string;
   status: "outstanding" | "resolved";
   note?: string;
+};
+
+// Extra input the insurer provides with a decision: the requested items and an
+// optional remark when returning for information, or a reason when declining.
+export type InsurerDecisionDetails = {
+  requirements?: InsurerRequirement[];
+  remarks?: string;
+  reason?: string;
 };
 
 export type AdmissionRecord = PendingPatient & {
@@ -80,6 +94,8 @@ export type AdmissionRecord = PendingPatient & {
     signatureImage?: string;
   };
   insurerFeedback?: InsurerRequirement[];
+  // Insurer's remark on a request-for-information, or reason on a decline.
+  insurerDecisionNote?: string;
   submissionAttempts: number;
   nextInsurerOutcome: InsurerOutcome;
   policyEligibility: PolicyEligibility;
@@ -118,7 +134,11 @@ type WorkflowContextValue = {
     signatureImage: string,
   ) => void;
   submitToInsurer: (id: string) => void;
-  reviewInsurerClaim: (id: string, outcome: InsurerOutcome) => void;
+  reviewInsurerClaim: (
+    id: string,
+    outcome: InsurerOutcome,
+    details?: InsurerDecisionDetails,
+  ) => void;
   sendNudge: (id: string) => void;
   setPolicyEligibility: (id: string, eligibility: PolicyEligibility) => void;
 };
@@ -127,15 +147,26 @@ const WorkflowContext = createContext<WorkflowContextValue | undefined>(
   undefined,
 );
 
-const rejectionRequirements: InsurerRequirement[] = [
+// Items the insurer can request when returning a package for information.
+export const requirementCatalog: InsurerRequirement[] = [
   {
     id: "lab-result",
-    label: "Attach the latest laboratory result",
+    label: "Latest laboratory result",
     status: "outstanding",
   },
   {
     id: "estimated-cost",
     label: "Confirm the estimated admission cost",
+    status: "outstanding",
+  },
+  {
+    id: "discharge-summary",
+    label: "Discharge summary",
+    status: "outstanding",
+  },
+  {
+    id: "specialist-referral",
+    label: "Specialist referral letter",
     status: "outstanding",
   },
 ];
@@ -569,7 +600,11 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
-  const reviewInsurerClaim = (id: string, outcome: InsurerOutcome) => {
+  const reviewInsurerClaim = (
+    id: string,
+    outcome: InsurerOutcome,
+    details: InsurerDecisionDetails = {},
+  ) => {
     const currentAdmission = admissions.find(record => record.id === id);
 
     if (!currentAdmission || currentAdmission.status !== "SUBMITTING_TO_INSURANCE") {
@@ -578,28 +613,39 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
 
     updateAdmission(id, record => {
       if (outcome === "REJECT") {
+        // Use the items the insurer selected (fall back to the whole catalog).
+        const requirements =
+          details.requirements && details.requirements.length > 0
+            ? details.requirements
+            : requirementCatalog;
+
         return addEvent(
           {
             ...record,
             status: "INSURANCE_REJECTED",
-            insurerFeedback: rejectionRequirements,
+            insurerFeedback: requirements,
+            insurerDecisionNote: details.remarks,
           },
           {
             actor: "Insurance",
-            message: "Additional document required",
+            message: "Additional documents requested",
           },
         );
       }
 
       if (outcome === "FINAL_REJECT") {
         return addEvent(
-          { ...record, status: "INSURANCE_FINAL_REJECTED" },
+          {
+            ...record,
+            status: "INSURANCE_FINAL_REJECTED",
+            insurerDecisionNote: details.reason,
+          },
           { actor: "Insurance", message: "Claim declined by insurer" },
         );
       }
 
       return addEvent(
-        { ...record, status: "INSURANCE_APPROVED" },
+        { ...record, status: "INSURANCE_APPROVED", insurerDecisionNote: undefined },
         { actor: "Insurance", message: "Claim approved" },
       );
     });

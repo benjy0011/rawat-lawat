@@ -24,6 +24,7 @@ export function resolveInsurerRequirements(
     requirement => {
       if (requirement.status === "resolved") return requirement;
 
+      // Data requirement: confirm the estimated cost from the doctor's note.
       if (requirement.id === "estimated-cost") {
         const cost = admission.doctorNote.estimatedCost;
         return cost
@@ -38,25 +39,20 @@ export function resolveInsurerRequirements(
             };
       }
 
-      if (requirement.id === "lab-result") {
-        // Retrieve the latest lab panel from the hospital record (a reference,
-        // consistent with the other prepared documents).
-        attachedDocuments.push({
-          id: "lab-result",
-          name: "Laboratory results",
-          source: "Hospital Lab Information System",
-          detail:
-            "Latest laboratory panel on record, retrieved and attached for the insurer.",
-          submissionStatus: "Ready to submit",
-        });
-        return {
-          ...requirement,
-          status: "resolved",
-          note: "Latest laboratory result retrieved from the hospital record.",
-        };
-      }
-
-      return requirement;
+      // Document requirement: retrieve the record from the hospital and attach
+      // it to the package (a reference, consistent with the other documents).
+      attachedDocuments.push({
+        id: requirement.id,
+        name: requirement.label,
+        source: "Hospital record",
+        detail: `${requirement.label} retrieved and attached for the insurer.`,
+        submissionStatus: "Ready to submit",
+      });
+      return {
+        ...requirement,
+        status: "resolved",
+        note: `${requirement.label} retrieved from the hospital record.`,
+      };
     },
   );
 

@@ -273,6 +273,16 @@ function HospitalAdminDashboardContent({
           </Stack>
         </Box>
       )}
+      {patient.insurerDecisionNote && (
+        <Box mt={1.5}>
+          <Typography variant="caption" fontWeight={800}>
+            {patient.status === "INSURANCE_FINAL_REJECTED"
+              ? "Decline reason"
+              : "Insurer note"}
+          </Typography>
+          <Typography variant="body2">{patient.insurerDecisionNote}</Typography>
+        </Box>
+      )}
       {pendingDoctorSignature && (
         <Typography variant="body2" mt={1.5}>
           Submission remains locked until the doctor signs the admission note.

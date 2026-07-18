@@ -906,7 +906,9 @@ function HospitalAdminDashboardContent({
                       sx={{ color: allChecksPassed ? "rgba(255,255,255,0.9)" : "#ffd7d0" }}
                     >
                       {allChecksPassed
-                        ? "AI check complete. This package is ready for hospital confirmation."
+                        ? isResubmission(patient)
+                          ? "AI re-check complete — the insurer's requested items are resolved. Ready to resubmit."
+                          : "AI check complete. This package is ready for hospital confirmation."
                         : "AI check found issues to resolve before submitting."}
                     </Typography>
                     <Stack spacing={1} mt={2}>
@@ -1612,10 +1614,40 @@ function getCurrentProgressStep(status: AdmissionStatus) {
 
 type SubmissionCheck = { label: string; passed: boolean; detail: string };
 
+// True once the admission has been submitted and returned by the insurer for
+// more information (a resubmission), so the earlier checks already passed.
+function isResubmission(patient: AdmissionRecord): boolean {
+  return (
+    patient.submissionAttempts > 0 && (patient.insurerFeedback?.length ?? 0) > 0
+  );
+}
+
 // Pre-submit review derived from the real admission data (identity, the
 // rule-based policy eligibility result, the signed note, and prepared
-// documents) instead of a fixed list of ticks.
+// documents) instead of a fixed list of ticks. On a resubmission it only
+// re-verifies the items the insurer requested, not the checks that already
+// passed on the first submission.
 function buildSubmissionChecks(patient: AdmissionRecord): SubmissionCheck[] {
+  if (isResubmission(patient)) {
+    return [
+      {
+        label: "Previously verified checks remain valid",
+        passed: true,
+        detail:
+          "Identity, policy eligibility, and the signed note passed on the first submission.",
+      },
+      ...(patient.insurerFeedback ?? []).map(requirement => ({
+        label: requirement.label,
+        passed: requirement.status === "resolved",
+        detail:
+          requirement.note ??
+          (requirement.status === "resolved"
+            ? "Resolved."
+            : "Still outstanding."),
+      })),
+    ];
+  }
+
   const failedPolicy = patient.policyChecks.filter(
     check => check.status === "failed",
   );

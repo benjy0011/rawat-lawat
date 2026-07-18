@@ -172,6 +172,20 @@ quick-login buttons for the admin and doctor demos.
 | Doctor        | `doctor@hospital.com` | `Doctor123!`  |
 | Administrator | `admin@hospital.com`  | `Admin123!`   |
 
+### Seeded patient logins
+
+Each seeded admission (below) belongs to a patient email. Create these accounts
+the same way (**Authentication → Users → Add user**, auto-confirmed) to log in as
+each patient and see their own admission and the claims assistant. Their scanned
+profiles and admissions already exist, so no re-scan is needed.
+
+| Patient           | Email                          | Password     |
+| ----------------- | ------------------------------ | ------------ |
+| Tan Ah Kow        | `tan.ah.kow@example.com`       | `Patient123!` |
+| Nur Aisha Rahman  | `nur.aisha.rahman@example.com` | `Patient123!` |
+| Lim Wei Jian      | `lim.wei.jian@example.com`     | `Patient123!` |
+| Siti Hawa Ismail  | `siti.hawa.ismail@example.com` | `Patient123!` |
+
 ## Sample Data
 
 The first time the app loads against an empty database, it seeds four demo

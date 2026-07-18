@@ -69,8 +69,8 @@ export function PatientAdmissions() {
     }
   };
 
-  const handleSignOut = () => {
-    signOut();
+  const handleSignOut = async () => {
+    await signOut();
     navigate("/login");
   };
 

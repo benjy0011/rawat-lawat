@@ -8,8 +8,8 @@ export function DoctorShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const { session, signOut } = useAuth();
 
-  const handleSignOut = () => {
-    signOut();
+  const handleSignOut = async () => {
+    await signOut();
     navigate("/login");
   };
 

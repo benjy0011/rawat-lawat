@@ -18,8 +18,8 @@ export function AdminShell({ children }: Props) {
   const location = useLocation();
   const { signOut } = useAuth();
 
-  const handleSignOut = () => {
-    signOut();
+  const handleSignOut = async () => {
+    await signOut();
     navigate("/login");
   };
 

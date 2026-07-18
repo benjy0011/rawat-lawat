@@ -96,7 +96,38 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your_key_here
 
 The `sb_secret_...` key must never be placed in the client.
 
-### 4. Start the development server
+### 4. Set up authentication
+
+Login uses Supabase Auth, so the demo accounts must be provisioned once in your
+project:
+
+1. **Authentication → Providers → Email** — turn **off** "Confirm email" so demo
+   accounts can sign in immediately.
+2. **Authentication → Users → Add user** — create each account (auto-confirmed):
+   - `patient@example.com` / `Patient123!`
+   - `doctor@hospital.com` / `Doctor123!`
+   - `admin@hospital.com` / `Admin123!`
+3. **SQL Editor** — set the staff roles (patients default to `user`):
+
+   ```sql
+   update public.profiles set role = 'doctor' where email = 'doctor@hospital.com';
+   update public.profiles set role = 'admin'  where email = 'admin@hospital.com';
+   ```
+
+   If `profiles` is empty (accounts were created before the schema ran), backfill
+   first, then run the updates above:
+
+   ```sql
+   insert into public.profiles (id, email, name, role)
+   select id, email, coalesce(raw_user_meta_data ->> 'name', ''), 'user'
+   from auth.users
+   on conflict (id) do nothing;
+   ```
+
+New patients can self-register from the app's **Create account** tab and get the
+`user` role automatically.
+
+### 5. Start the development server
 
 ```bash
 npm run dev
@@ -106,6 +137,9 @@ Open `http://localhost:3000` and keep the terminal running. Press `Ctrl+C` to
 stop.
 
 ## Demo Accounts
+
+These are the accounts created during setup (step 4). The sign-in screen also has
+quick-login buttons for the admin and doctor demos.
 
 | Role          | Email                 | Password     |
 | ------------- | --------------------- | ------------ |

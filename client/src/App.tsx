@@ -134,8 +134,8 @@ function UploadLayout() {
             <IconButton
               aria-label="Sign out"
               size="small"
-              onClick={() => {
-                signOut();
+              onClick={async () => {
+                await signOut();
                 navigate("/login");
               }}
             >

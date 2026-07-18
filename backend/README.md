@@ -15,6 +15,9 @@ draft a doctor's admission recommendation.
 
 ## Setup
 
+Requires **Python 3.10+** and a **Groq API key**
+([console.groq.com/keys](https://console.groq.com/keys)).
+
 ```bash
 cd backend
 python -m venv .venv

@@ -60,9 +60,11 @@ entry if it is unavailable.
 
 ### Prerequisites
 
-- Node.js 22 or newer
-- npm
+- Node.js 22 or newer, and npm
+- Python 3.10 or newer (for the AI service)
 - A Supabase project (free tier is sufficient)
+- A Groq API key — free at [console.groq.com/keys](https://console.groq.com/keys)
+  (for the AI service)
 
 ### 1. Install frontend dependencies
 
@@ -235,11 +237,19 @@ npm run preview  # Preview the production build
 
 ## OCR Models
 
-Document recognition runs in the browser. The `prebuild` script downloads the
-required OCR models into `client/public/models` before the Vite build and ensures
-they are included in `dist/models` for deployment; generated model files are
-excluded from Git. The build environment therefore needs outbound internet
-access.
+Document recognition (the patient IC/policy scan) runs in the browser using OCR
+models that are **not** committed to Git. A production build downloads them
+automatically (the `prebuild` step) into `client/public/models`.
+
+`npm run dev` does **not** download them. To try the patient scan flow in
+development, fetch the models once from `client/`:
+
+```bash
+node scripts/download-ocr-models.mjs
+```
+
+The seeded demo data (admin/doctor/insurer flows) does not need the models — only
+the patient onboarding scan does. Downloading requires outbound internet access.
 
 ## Deployment
 

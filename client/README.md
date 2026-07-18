@@ -5,7 +5,7 @@ letter (GL) processing across patients, doctors, hospital administrators, and
 insurers. Patients scan their identity and policy documents once, request an
 admission, and track it end to end; hospital staff review the package, run
 policy eligibility checks against the Policy Vault, and submit it to the
-insurer. An optional AI service drafts a doctor's admission recommendation.
+insurer. An AI service drafts a doctor's admission recommendation.
 
 ## Project Structure
 
@@ -23,7 +23,7 @@ rawat-lawat/
 │   │   └── workflow/       # Admission workflow state and eligibility rules
 │   ├── supabase-schema.sql # Database schema (run once in Supabase)
 │   └── .env.example        # Frontend environment variable template
-└── backend/                # Optional FastAPI AI service (see backend/README.md)
+└── backend/                # FastAPI AI service (see backend/README.md)
 ```
 
 ## Tech Stack
@@ -46,15 +46,15 @@ rawat-lawat/
 
 - **PaddleOCR** — identity and policy scanning that runs entirely in the browser
 
-### AI Service (optional)
+### AI Service
 
 - **FastAPI** — a small Python backend (`backend/`) that keeps the AI key
   server-side
 - **Groq** via the **OpenAI SDK** — drafts a doctor's admission recommendation
   with `openai/gpt-oss-20b`
 
-The app runs fully without this service; only the doctor's **AI Generate** button
-depends on it, and it falls back to manual entry if the service is unavailable.
+The doctor's **AI Generate** button uses this service, and falls back to manual
+entry if it is unavailable.
 
 ## Getting Started
 
@@ -96,7 +96,7 @@ cp .env.example .env.local
 ```env
 VITE_SUPABASE_URL=https://your-project-ref.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your_key_here
-# Optional — only needed for the doctor's AI recommendation (defaults to this):
+# Base URL of the AI service (defaults to this):
 VITE_API_URL=http://localhost:8000
 ```
 
@@ -146,9 +146,9 @@ npm run dev
 Open `http://localhost:3000` and keep the terminal running. Press `Ctrl+C` to
 stop.
 
-### 6. (Optional) Start the AI service
+### 6. Start the AI service
 
-Only needed for the doctor's **AI Generate** recommendation. In a second terminal:
+In a second terminal:
 
 ```bash
 cd ../backend
@@ -253,10 +253,10 @@ The frontend is a static build and deploys to any static host (e.g. Vercel). Set
 the same `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` environment
 variables in the hosting provider so the production build can reach Supabase.
 
-The optional AI service (`backend/`) is a Python app and must be hosted
-separately (e.g. Render, Railway, Fly). If you deploy it, point the frontend at
-it with `VITE_API_URL` and add its origin to the backend's `CORS_ORIGINS`.
+The AI service (`backend/`) is a Python app and must be hosted separately (e.g.
+Render, Railway, Fly). Point the frontend at it with `VITE_API_URL` and add its
+origin to the backend's `CORS_ORIGINS`.
 
 ## License
 
-MIT
+Released under the [MIT License](../LICENSE).

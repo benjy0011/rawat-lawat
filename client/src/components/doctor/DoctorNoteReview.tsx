@@ -18,15 +18,12 @@ import DrawRoundedIcon from "@mui/icons-material/DrawRounded";
 import { useRef, useState, type PointerEvent } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../../auth/useAuth";
+import { draftRecommendation } from "../../lib/api";
 import {
   AdmissionNoteDocument,
   SignedAdmissionSignature,
 } from "../admission/AdmissionNoteDocument";
 import { useWorkflow } from "../../workflow/AdmissionWorkflowContext";
-
-function createRecommendation(diagnosis: string, estimatedCost: string) {
-  return `Based on the documented diagnosis of ${diagnosis} and estimated treatment cost of ${estimatedCost}, admission and clinically appropriate treatment are recommended, subject to insurer approval.`;
-}
 
 export function DoctorNoteReview() {
   const { patientId } = useParams();
@@ -41,6 +38,7 @@ export function DoctorNoteReview() {
   const [recommendation, setRecommendation] = useState("");
   const [isGeneratingRecommendation, setIsGeneratingRecommendation] =
     useState(false);
+  const [generationError, setGenerationError] = useState("");
   const [signatureImage, setSignatureImage] = useState("");
   const admission = admissions.find(item => item.id === patientId);
 
@@ -63,19 +61,27 @@ export function DoctorNoteReview() {
     diagnosis.trim() && estimatedCost.trim(),
   );
 
-  const generateRecommendation = () => {
+  const generateRecommendation = async () => {
     if (!canGenerateRecommendation) return;
 
-    const recommendationDiagnosis = diagnosis.trim();
-    const recommendationCost = estimatedCost.trim();
+    setGenerationError("");
     setIsGeneratingRecommendation(true);
-
-    window.setTimeout(() => {
-      setRecommendation(
-        createRecommendation(recommendationDiagnosis, recommendationCost),
+    try {
+      const text = await draftRecommendation({
+        diagnosis: diagnosis.trim(),
+        estimatedCost: estimatedCost.trim(),
+        admissionReason: admission.admissionReason,
+      });
+      setRecommendation(text);
+    } catch (error) {
+      setGenerationError(
+        error instanceof Error
+          ? error.message
+          : "Could not generate a recommendation. Please write one manually.",
       );
+    } finally {
       setIsGeneratingRecommendation(false);
-    }, 1200);
+    }
   };
 
   return (
@@ -160,10 +166,13 @@ export function DoctorNoteReview() {
                       value={recommendation}
                       onChange={event => setRecommendation(event.target.value)}
                       disabled={isGeneratingRecommendation}
+                      error={Boolean(generationError)}
                       helperText={
-                        isGeneratingRecommendation
-                          ? "AI is drafting a recommendation from the diagnosis and estimated cost."
-                          : "Write your own recommendation or generate an AI draft."
+                        generationError
+                          ? generationError
+                          : isGeneratingRecommendation
+                            ? "AI is drafting a recommendation from the diagnosis and estimated cost."
+                            : "Write your own recommendation or generate an AI draft."
                       }
                       placeholder="Write your recommendation"
                       multiline

@@ -129,4 +129,17 @@ export const vaultPolicies: VaultPolicy[] = [
     logo: allianzLogo,
     documentUrl: allianzPolicyDocument,
   },
+  {
+    id: "vault-aia-003",
+    policyNumber: "8000146400171311",
+    memberId: "8000146400171311",
+    policyholder: "Afdaliman Hakimi Bin Mohd",
+    insurer: "AIA Malaysia",
+    plan: "Medical Card",
+    status: "Active",
+    expiresOn: "31 Dec 2027",
+    sumInsured: 150000,
+    logo: aiaLogo,
+    documentUrl: aiaPolicyDocument,
+  },
 ];

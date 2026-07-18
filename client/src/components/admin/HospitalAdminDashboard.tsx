@@ -30,6 +30,7 @@ import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import SmartToyOutlinedIcon from "@mui/icons-material/SmartToyOutlined";
 import SupportAgentRoundedIcon from "@mui/icons-material/SupportAgentRounded";
 import TaskAltRoundedIcon from "@mui/icons-material/TaskAltRounded";
+import RadioButtonUncheckedRoundedIcon from "@mui/icons-material/RadioButtonUncheckedRounded";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import { useState, type ReactNode } from "react";
 import aiaPolicyDocument from "../../assets/aia_policy.pdf";
@@ -245,11 +246,31 @@ function HospitalAdminDashboardContent({
           <Typography variant="caption" fontWeight={800}>
             Insurer requirements
           </Typography>
-          <Box component="ul" my={0.5} pl={2.5}>
+          <Stack spacing={0.75} mt={0.5}>
             {patient.insurerFeedback.map(requirement => (
-              <li key={requirement}>{requirement}</li>
+              <Box key={requirement.id}>
+                <Stack direction="row" alignItems="center" spacing={0.75}>
+                  {requirement.status === "resolved" ? (
+                    <TaskAltRoundedIcon color="success" sx={{ fontSize: 16 }} />
+                  ) : (
+                    <RadioButtonUncheckedRoundedIcon
+                      sx={{ fontSize: 16, color: "text.disabled" }}
+                    />
+                  )}
+                  <Typography variant="body2">{requirement.label}</Typography>
+                </Stack>
+                {requirement.note && (
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ display: "block", pl: 2.75 }}
+                  >
+                    {requirement.note}
+                  </Typography>
+                )}
+              </Box>
             ))}
-          </Box>
+          </Stack>
         </Box>
       )}
       {pendingDoctorSignature && (

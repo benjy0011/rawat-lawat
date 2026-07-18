@@ -12,6 +12,7 @@ import {
   upsertProfile,
 } from "../lib/workflowRepository";
 import { checksWithStatus, evaluatePolicy } from "./evaluatePolicy";
+import { resolveInsurerRequirements } from "./resolveInsurerRequirements";
 
 export type AdmissionStatus =
   | "PENDING_ADMIN_APPROVAL"
@@ -49,6 +50,13 @@ export type PolicyCheck = {
   detail?: string;
 };
 
+export type InsurerRequirement = {
+  id: "lab-result" | "estimated-cost";
+  label: string;
+  status: "outstanding" | "resolved";
+  note?: string;
+};
+
 export type AdmissionRecord = PendingPatient & {
   patientEmail?: string;
   hospitalName: string;
@@ -71,7 +79,7 @@ export type AdmissionRecord = PendingPatient & {
     signedAt?: string;
     signatureImage?: string;
   };
-  insurerFeedback?: string[];
+  insurerFeedback?: InsurerRequirement[];
   submissionAttempts: number;
   nextInsurerOutcome: InsurerOutcome;
   policyEligibility: PolicyEligibility;
@@ -119,9 +127,17 @@ const WorkflowContext = createContext<WorkflowContextValue | undefined>(
   undefined,
 );
 
-const rejectionRequirements = [
-  "Attach the latest laboratory result",
-  "Confirm the estimated admission cost",
+const rejectionRequirements: InsurerRequirement[] = [
+  {
+    id: "lab-result",
+    label: "Attach the latest laboratory result",
+    status: "outstanding",
+  },
+  {
+    id: "estimated-cost",
+    label: "Confirm the estimated admission cost",
+    status: "outstanding",
+  },
 ];
 
 const policyCheckQuestions: PolicyCheck[] = [
@@ -476,24 +492,52 @@ export function WorkflowProvider({ children }: { children: React.ReactNode }) {
           { ...record, status: "AI_RESUBMISSION" },
           {
             actor: "AI Assistant",
-            message: "Parsed insurer feedback and created a resubmission task",
+            message: "Reviewing the insurer's requirements",
           },
         ),
       );
       window.setTimeout(() => {
-        updateAdmission(id, record =>
-          addEvent(
-            {
-              ...record,
-              status: "ADMIN_REVIEW",
-              insurerFeedback: undefined,
-            },
-            {
+        updateAdmission(id, record => {
+          const { requirements, attachedDocuments, allResolved } =
+            resolveInsurerRequirements(record);
+
+          // Merge any newly attached documents into the package (dedupe by id).
+          const existingIds = new Set(
+            record.retrievedDocuments.map(document => document.id),
+          );
+          const retrievedDocuments = [
+            ...record.retrievedDocuments,
+            ...attachedDocuments.filter(document => !existingIds.has(document.id)),
+          ];
+
+          let next: AdmissionRecord = {
+            ...record,
+            retrievedDocuments,
+            insurerFeedback: requirements,
+            // Only reopen for submission once every requirement is genuinely
+            // resolved; otherwise stay flagged for manual action.
+            status: allResolved ? "ADMIN_REVIEW" : "INSURANCE_REJECTED",
+          };
+
+          for (const requirement of requirements) {
+            if (requirement.status === "resolved" && requirement.note) {
+              next = addEvent(next, {
+                actor: "AI Assistant",
+                message: requirement.note,
+              });
+            }
+          }
+
+          if (!allResolved) {
+            next = addEvent(next, {
               actor: "AI Assistant",
-              message: "Updated the package using available hospital data",
-            },
-          ),
-        );
+              message:
+                "Some insurer requirements still need manual action before resubmitting",
+            });
+          }
+
+          return next;
+        });
       }, 3500);
     }, 2200);
   };

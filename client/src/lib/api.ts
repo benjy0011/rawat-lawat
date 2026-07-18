@@ -1,9 +1,13 @@
 import { supabase } from "./supabaseClient";
 import type { AdmissionRecord } from "../workflow/AdmissionWorkflowContext";
 
-// Base URL of the FastAPI AI service (see backend/). The Supabase access token
-// is attached so the server can verify the caller is a signed-in user.
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+// Vite replaces import.meta.env.PROD at build time. Keep the local override
+// separate so a developer's .env.local cannot accidentally point a production
+// build back to localhost.
+const PRODUCTION_API_URL = "https://rawat-lawat-be.vercel.app";
+const API_URL = import.meta.env.PROD
+  ? (import.meta.env.VITE_PROD_API_URL ?? PRODUCTION_API_URL)
+  : (import.meta.env.VITE_API_URL ?? "http://localhost:8000");
 
 async function accessToken(): Promise<string> {
   const { data } = await supabase.auth.getSession();

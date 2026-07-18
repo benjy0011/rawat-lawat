@@ -5,27 +5,25 @@ letter (GL) processing across patients, doctors, hospital administrators, and
 insurers. Patients scan their identity and policy documents once, request an
 admission, and track it end to end; hospital staff review the package, run
 policy eligibility checks against the Policy Vault, and submit it to the
-insurer.
+insurer. An optional AI service drafts a doctor's admission recommendation.
 
 ## Project Structure
 
 ```
-client/
-├── public/                 # Static assets and OCR models (downloaded at build)
-├── src/
-│   ├── auth/               # Session handling and role-based access
-│   ├── components/         # Screens and UI, grouped by role
-│   │   ├── admin/          # Hospital administrator dashboard and queues
-│   │   ├── doctor/         # Doctor review and note signing
-│   │   └── insurance/      # Insurer claim review
-│   ├── data/               # Policy Vault and reference data
-│   ├── lib/                # Supabase client and workflow data access
-│   ├── types/              # Shared domain types
-│   ├── utils/              # In-browser OCR (document recognition)
-│   └── workflow/           # Admission workflow state and eligibility rules
-├── supabase-schema.sql     # Database schema (run once in Supabase)
-├── .env.example            # Environment variable template
-└── package.json
+rawat-lawat/
+├── client/                 # React frontend (this app)
+│   ├── public/             # Static assets and OCR models (downloaded at build)
+│   ├── src/
+│   │   ├── auth/           # Supabase Auth session and role-based access
+│   │   ├── components/     # Screens and UI, grouped by role (admin/doctor/insurance)
+│   │   ├── data/           # Policy Vault and reference data
+│   │   ├── lib/            # Supabase client, workflow data access, API client
+│   │   ├── types/          # Shared domain types
+│   │   ├── utils/          # In-browser OCR (document recognition)
+│   │   └── workflow/       # Admission workflow state and eligibility rules
+│   ├── supabase-schema.sql # Database schema (run once in Supabase)
+│   └── .env.example        # Frontend environment variable template
+└── backend/                # Optional FastAPI AI service (see backend/README.md)
 ```
 
 ## Tech Stack
@@ -47,6 +45,16 @@ client/
 ### Document Recognition
 
 - **PaddleOCR** — identity and policy scanning that runs entirely in the browser
+
+### AI Service (optional)
+
+- **FastAPI** — a small Python backend (`backend/`) that keeps the AI key
+  server-side
+- **Groq** via the **OpenAI SDK** — drafts a doctor's admission recommendation
+  with `openai/gpt-oss-20b`
+
+The app runs fully without this service; only the doctor's **AI Generate** button
+depends on it, and it falls back to manual entry if the service is unavailable.
 
 ## Getting Started
 
@@ -88,6 +96,8 @@ cp .env.example .env.local
 ```env
 VITE_SUPABASE_URL=https://your-project-ref.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your_key_here
+# Optional — only needed for the doctor's AI recommendation (defaults to this):
+VITE_API_URL=http://localhost:8000
 ```
 
 - **Project URL** — Supabase dashboard → Project Settings → Data API
@@ -136,6 +146,22 @@ npm run dev
 Open `http://localhost:3000` and keep the terminal running. Press `Ctrl+C` to
 stop.
 
+### 6. (Optional) Start the AI service
+
+Only needed for the doctor's **AI Generate** recommendation. In a second terminal:
+
+```bash
+cd ../backend
+python -m venv .venv
+# Windows: .venv\Scripts\activate   |   macOS/Linux: source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env          # set GROQ_API_KEY, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY
+uvicorn main:app --reload --port 8000
+```
+
+The Groq key stays server-side and is never exposed to the browser. See
+[`backend/README.md`](../backend/README.md) for details.
+
 ## Demo Accounts
 
 These are the accounts created during setup (step 4). The sign-in screen also has
@@ -179,7 +205,9 @@ load.
 ### Doctor
 
 - Review the prepared admission note
-- Enter the diagnosis, estimated cost, and recommendation
+- Enter the diagnosis and estimated cost
+- Draft the recommendation with **AI Generate** (Groq, via the AI service) or
+  write it manually
 - Electronically sign the note
 
 ### Hospital Administrator
@@ -221,9 +249,13 @@ npm run build
 
 ## Deployment
 
-The app is a static build and deploys to any static host (e.g. Vercel). Set the
-same `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` environment
+The frontend is a static build and deploys to any static host (e.g. Vercel). Set
+the same `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` environment
 variables in the hosting provider so the production build can reach Supabase.
+
+The optional AI service (`backend/`) is a Python app and must be hosted
+separately (e.g. Render, Railway, Fly). If you deploy it, point the frontend at
+it with `VITE_API_URL` and add its origin to the backend's `CORS_ORIGINS`.
 
 ## License
 

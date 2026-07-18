@@ -266,6 +266,10 @@ The AI service (`backend/`) is a Python app and must be hosted separately (e.g.
 Render, Railway, Fly). Point the frontend at it with `VITE_API_URL` and add its
 origin to the backend's `CORS_ORIGINS`.
 
+## Architecture Diagram
+<img width="921" height="692" alt="image" src="https://github.com/user-attachments/assets/3486c52b-6efa-4422-9d3b-8f569ac742a6" />
+
+
 ## License
 
 Released under the [MIT License](./LICENSE).
